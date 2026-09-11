@@ -1,0 +1,2 @@
+najaeda==0.7.20
+naja-scope==0.1.11

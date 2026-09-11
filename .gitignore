@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+.cache/
+runs/
+result
+result-*
+# Preserve, but do not import, installations from the previous local checkout.
+/deps/
+/thirdparty/
+/flow_runs/
+/skill_adapters/
