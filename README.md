@@ -17,6 +17,16 @@ toolchain.json             Pinned package and fixture references
 tests/                     Fast, offline repository and example checks
 ```
 
+## Demo
+
+Watch the GCD timing-improvement flow: OpenROAD, AI report analysis,
+Naja-Scope inspection, NajaEDA editing, Kepler Formal SEC, and a second
+OpenROAD run to compare the results.
+
+[![Watch the GCD timing-improvement demo](examples/backend/gcd/media/demo-preview.jpg)](examples/backend/gcd/media/demo.mp4)
+
+Click the preview to open the video (46 seconds, no audio).
+
 ## Start
 
 1. Read the [package setup](tools/README.md). Kepler Formal uses Nix and the
