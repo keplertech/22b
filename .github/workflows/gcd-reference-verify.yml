@@ -54,18 +54,20 @@ jobs:
         with:
           name: keplertech
           skipPush: true
-      - name: Obtain pinned native packages (cached binaries only)
+      - name: Obtain cached OpenROAD (fail before downloading dependencies on a cache miss)
         run: |
           mkdir -p .cache/gcd-tools
-          nix --version
-          df -h . /nix
-          kf=$(python -c 'import json; print(json.load(open("toolchain.json"))["kepler_formal"]["installable"])')
-          openroad=$(python -c 'import json; p=json.load(open("toolchain.json")); print(p["nixpkgs"]+"#"+p["openroad"]["nixpkgs_attribute"])')
-          nix build --max-jobs 0 --builders '' --out-link .cache/gcd-tools/kepler "$kf"
-          nix build --max-jobs 0 --builders '' --out-link .cache/gcd-tools/openroad "$openroad"
-          echo "$PWD/.cache/gcd-tools/kepler/bin" >> "$GITHUB_PATH"
+          df -h . /nix | tee .cache/gcd-tools/disk-before.txt
+          openroad=$(python -c 'import json; print(json.load(open("toolchain.json"))["openroad"]["installable"])')
+          cache=$(python -c 'import json; print(json.load(open("toolchain.json"))["openroad"]["cache"])')
+          bash tools/install-cached-package.sh openroad "$openroad" "$cache" .cache/gcd-tools
           echo "$PWD/.cache/gcd-tools/openroad/bin" >> "$GITHUB_PATH"
-          nix path-info --json ./.cache/gcd-tools/kepler ./.cache/gcd-tools/openroad > .cache/gcd-tools/nix-paths.json
+      - name: Obtain cached Kepler Formal
+        run: |
+          kf=$(python -c 'import json; print(json.load(open("toolchain.json"))["kepler_formal"]["installable"])')
+          cache=$(python -c 'import json; print(json.load(open("toolchain.json"))["kepler_formal"]["cache"])')
+          bash tools/install-cached-package.sh kepler "$kf" "$cache" .cache/gcd-tools
+          echo "$PWD/.cache/gcd-tools/kepler/bin" >> "$GITHUB_PATH"
       - name: Install published NajaEDA and Naja-Scope wheels
         run: |
           python -m venv .cache/gcd-python
@@ -99,5 +101,6 @@ jobs:
             runs/gcd-reference/
             .cache/gcd-tools/*.json
             .cache/gcd-tools/*.txt
+            .cache/gcd-tools/*.log
           if-no-files-found: warn
           retention-days: 14

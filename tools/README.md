@@ -30,6 +30,12 @@ fail without a local or remote source build. A pinned package reference does
 not guarantee the corresponding binary is currently cached on every platform.
 Do not disable signature verification to work around a cache miss.
 
+CI uses [install-cached-package.sh](install-cached-package.sh) to check the exact
+native output in the local store or designated cache before installing. Cache
+misses fail early, with package references, logs and exit codes retained. Each
+native tool has its own installable in `toolchain.json`; the general Nixpkgs pin
+below is for Python and auxiliary tools, not an implicit OpenROAD version.
+
 For an isolated Python interpreter:
 
 ```sh

@@ -7,7 +7,14 @@
     "systems": ["x86_64-linux", "aarch64-darwin"],
     "cache_availability": "not yet verified for this pin"
   },
-  "openroad": {"nixpkgs_attribute": "openroad"},
+  "openroad": {
+    "installable": "github:NixOS/nixpkgs/b6018f87da91d19d0ab4cf979885689b469cdd41#openroad",
+    "cache": "https://cache.nixos.org",
+    "version": "2.0-unstable-2025-03-01",
+    "verified_cached_outputs": {
+      "x86_64-linux": "/nix/store/4861psjhq43pid5pa9jbp6bvq0b18fnm-openroad-2.0-unstable-2025-03-01"
+    }
+  },
   "python": {"nixpkgs_attribute": "python313"},
   "python_packages": {"najaeda": "0.7.20", "naja-scope": "0.1.11"},
   "gcd": {
