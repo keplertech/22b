@@ -16,6 +16,16 @@ DOCS = [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "SKILL.md",
 
 
 class RepositoryTests(unittest.TestCase):
+    def test_demo_uses_inline_video_attachment(self):
+        readme = (ROOT / "README.md").read_text()
+        demo = readme.split("## Demo\n", 1)[1].split("\n## ", 1)[0]
+        self.assertRegex(
+            demo,
+            r"(?m)^https://github\.com/user-attachments/assets/"
+            r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
+        )
+        self.assertNotIn("](examples/backend/gcd/media/demo.mp4)", demo)
+
     def test_skill_frontmatter(self):
         self.assertEqual(len(SKILLS), 7)
         names = set()
