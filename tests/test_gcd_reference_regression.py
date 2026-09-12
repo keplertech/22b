@@ -1,6 +1,7 @@
 """Offline gate tests; no model, native package, SEC or OpenROAD is run here."""
 
 import importlib.util
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -39,6 +40,39 @@ class ReferenceTests(unittest.TestCase):
 
     def test_explicit_full_proof(self):
         self.assertEqual(REPLAY.require_full_sec(PROVED, 0)["proved_outputs"], 18)
+
+    def test_openroad_binary_must_match_flow_revision(self):
+        revision = json.loads((ROOT / "toolchain.json").read_text())["openroad"]["source_revision"]
+        REPLAY.require_openroad_revision(f"2.0-unstable-2025-03-01_{revision}\n", revision)
+        for version in ("26Q2", "", revision[:10], revision + "a", "b" + revision):
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "flow source revision"):
+                REPLAY.require_openroad_revision(version, revision)
+
+    def test_prepare_rejects_wrong_binary_before_downloading_fixture(self):
+        pins = json.loads((ROOT / "toolchain.json").read_text())
+
+        def version_run(directory, command, **kwargs):
+            self.assertEqual(command[-1], "-version")
+            directory.mkdir()
+            (directory / "tool.log").write_text("26Q2\n")
+
+        with patch.object(REPLAY.importlib.metadata, "version", side_effect=pins["python_packages"].get), \
+             patch.object(REPLAY.shutil, "which", return_value="/tools/openroad"), \
+             patch.object(REPLAY, "run_command", side_effect=version_run), \
+             patch.object(REPLAY.importlib.util, "spec_from_file_location") as fetch_loader:
+            with self.assertRaisesRegex(ValueError, "flow source revision"):
+                REPLAY.prepare(self.work / "new", self.work / "fixture")
+        fetch_loader.assert_not_called()
+
+    def test_tool_failure_prints_bounded_tail_and_preserves_full_log(self):
+        captured = io.StringIO()
+        command = [sys.executable, "-c",
+                   "print('x' * 10000); print('invalid command name sta::scenes'); raise SystemExit(1)"]
+        with patch("sys.stdout", captured), self.assertRaises(RuntimeError):
+            REPLAY.run_command(self.work / "failure", command, timeout=10)
+        self.assertIn("invalid command name sta::scenes", captured.getvalue())
+        self.assertLess(len(captured.getvalue()), 8500)
+        self.assertGreater((self.work / "failure/tool.log").stat().st_size, 10000)
 
     def test_partial_proof_is_not_a_reference_pass(self):
         with self.assertRaisesRegex(ValueError, "partial proof is not a mismatch"):

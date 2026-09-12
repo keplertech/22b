@@ -59,7 +59,7 @@ From the repository root, in the Python environment with NajaEDA installed:
 ```sh
 export ROOT="$PWD"
 export EXAMPLE="$ROOT/examples/backend/gcd"
-export FIXTURE="$ROOT/.cache/gcd-fixture-v1"
+export FIXTURE="$ROOT/.cache/gcd-fixture-v2"
 python "$EXAMPLE/platform/fetch_fixture.py" "$FIXTURE"
 export LIBERTY="$FIXTURE/test/sky130hd/sky130hd_tt.lib"
 export RUN="$ROOT/runs/gcd-$(date -u +%Y%m%dT%H%M%SZ)"
@@ -69,8 +69,10 @@ nix profile list --json > "$RUN/nix-profile.json"
 python -m pip freeze > "$RUN/python-packages.txt"
 ```
 
-The fixture is data from an immutable OpenROAD revision, not a tool source
+The fixture combines data from immutable OpenROAD revisions, not a tool source
 checkout. The downloader verifies checksums before reusing a complete cache.
+The flow scripts match the packaged OpenROAD source revision; technology data
+retains the original fixture revision. Both are recorded in the manifest.
 It will not repair or overwrite an incomplete/modified cache automatically.
 Use a fresh cache path if a download is interrupted. Keep `manifest.json` with
 the experiment. No source submodule or model installation is involved.

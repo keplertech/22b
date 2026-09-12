@@ -163,7 +163,7 @@ class FixtureTests(unittest.TestCase):
         self.destination = Path(self.temp.name) / "fixture"
 
     def fake_download(self, url, timeout):
-        self.assertTrue(url.startswith(self.fetcher.BASE))
+        self.assertIn(url, self.fetcher.URLS.values())
         self.assertEqual(timeout, 30)
         return io.BytesIO(b"fixture data\n")
 
@@ -175,6 +175,9 @@ class FixtureTests(unittest.TestCase):
             self.assertIn(self.fetcher.BASE + "test/sky130hd/sky130_fd_sc_hd__tt_025C_1v80.lib", urls)
             self.assertIn(self.fetcher.BASE + "test/sky130hd/sky130_fd_sc_hd_merged.lef", urls)
             self.assertNotIn(self.fetcher.BASE + "test/sky130hd/sky130hd_tt.lib", urls)
+            for name in self.fetcher.FLOW_FILES:
+                self.assertIn(self.fetcher.FLOW_BASE + name, urls)
+                self.assertNotIn(self.fetcher.BASE + name, urls)
         with patch.object(self.fetcher.urllib.request, "urlopen", side_effect=AssertionError("Unexpected download")):
             self.fetcher.fetch(self.destination)
 
@@ -184,6 +187,30 @@ class FixtureTests(unittest.TestCase):
         (self.destination / "test/flow.tcl").write_text("modified")
         with self.assertRaisesRegex(ValueError, "Modified fixture"):
             self.fetcher.fetch(self.destination)
+
+    def test_old_or_mismatched_flow_revision_cache_is_rejected(self):
+        with patch.object(self.fetcher.urllib.request, "urlopen", side_effect=self.fake_download):
+            self.fetcher.fetch(self.destination)
+        path = self.destination / "manifest.json"
+        original = json.loads(path.read_text())
+        for revision in (None, self.fetcher.REVISION):
+            manifest = dict(original)
+            if revision is None:
+                del manifest["flow_revision"]
+            else:
+                manifest["flow_revision"] = revision
+            path.write_text(json.dumps(manifest))
+            with self.subTest(revision=revision), self.assertRaises(ValueError):
+                self.fetcher.verify(self.destination)
+
+    def test_only_flow_scripts_move_to_binary_revision(self):
+        pins = json.loads((ROOT / "toolchain.json").read_text())
+        self.assertEqual(self.fetcher.FLOW_REVISION, pins["openroad"]["source_revision"])
+        self.assertEqual(set(self.fetcher.FLOW_FILES),
+                         {"test/helpers.tcl", "test/flow_helpers.tcl", "test/flow.tcl"})
+        for name, url in self.fetcher.URLS.items():
+            base = self.fetcher.FLOW_BASE if name in self.fetcher.FLOW_FILES else self.fetcher.BASE
+            self.assertEqual(url, base + self.fetcher.SOURCES[name])
 
     def test_partial_cache_is_not_reused(self):
         self.destination.mkdir()

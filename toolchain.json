@@ -11,6 +11,7 @@
     "installable": "github:NixOS/nixpkgs/b6018f87da91d19d0ab4cf979885689b469cdd41#openroad",
     "cache": "https://cache.nixos.org",
     "version": "2.0-unstable-2025-03-01",
+    "source_revision": "e794373d44ac5421f0633d8dda7e5c59e8fe79bf",
     "verified_cached_outputs": {
       "x86_64-linux": "/nix/store/4861psjhq43pid5pa9jbp6bvq0b18fnm-openroad-2.0-unstable-2025-03-01"
     }

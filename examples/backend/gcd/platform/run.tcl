@@ -24,7 +24,8 @@ cd $fixture
 source helpers.tcl
 source flow_helpers.tcl
 source sky130hd/sky130hd.vars
-proc cpu_count {} { return 4 }
+# The matching upstream flow determines threads with getconf; use the same host
+# for baseline and candidate.
 set design gcd
 set top_module gcd
 set die_area {0 0 299.96 300.128}

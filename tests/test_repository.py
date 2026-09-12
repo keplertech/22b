@@ -65,6 +65,7 @@ class RepositoryTests(unittest.TestCase):
         self.assertRegex(manifest["kepler_formal"]["installable"], r"rev=[0-9a-f]{40}&submodules=1#kepler-formal$")
         self.assertEqual(manifest["kepler_formal"]["cache"], "https://keplertech.cachix.org")
         self.assertRegex(manifest["gcd"]["fixture_revision"], r"^[0-9a-f]{40}$")
+        self.assertRegex(manifest["openroad"]["source_revision"], r"^[0-9a-f]{40}$")
         self.assertFalse((ROOT / ".gitmodules").exists())
         self.assertIn(manifest["kepler_formal"]["installable"],
                       (ROOT / "tools/kepler-formal/install.md").read_text())

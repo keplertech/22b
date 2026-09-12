@@ -55,9 +55,20 @@ def run_command(directory, command, *, timeout, env=None, accept_nonzero=False):
             code = process.returncode
     finally:
         save(directory / "execution.json", {"exit_code": code, "seconds": time.monotonic() - start})
+        if code != 0 and (directory / "tool.log").is_file():
+            with (directory / "tool.log").open("rb") as log:
+                log.seek(0, 2)
+                log.seek(max(0, log.tell() - 8192))
+                tail = log.read().decode("utf-8", errors="replace")
+            print(f"--- Tool output tail: {directory / 'tool.log'} ---\n{tail}", flush=True)
     if code != 0 and not accept_nonzero:
         raise RuntimeError(f"Tool exited {code}; see {directory / 'tool.log'}")
     return code
+
+
+def require_openroad_revision(version, revision):
+    if not re.search(r"(?<![0-9a-f])" + re.escape(revision) + r"(?![0-9a-f])", version):
+        raise ValueError(f"OpenROAD version does not match the flow source revision {revision}: {version.strip()}")
 
 
 def require_full_sec(log, exit_code):
@@ -182,6 +193,9 @@ def prepare(work, fixture):
     tools = {name: shutil.which(name) for name in ("openroad", "kepler-formal")}
     if not all(tools.values()):
         raise ValueError("Install the pinned OpenROAD and Kepler Formal packages first")
+    run_command(work / "openroad-version", [tools["openroad"], "-version"], timeout=30)
+    version = (work / "openroad-version/tool.log").read_text()
+    require_openroad_revision(version, pins["openroad"]["source_revision"])
     spec = importlib.util.spec_from_file_location("gcd_fixture", PLATFORM / "fetch_fixture.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -195,7 +209,8 @@ def prepare(work, fixture):
     metadata = {"kind": "deterministic_reference_replay_no_model", "completed": [],
                 "source_hashes": input_hashes(), "fixture": str(fixture),
                 "fixture_manifest_sha256": digest(fixture / "manifest.json"),
-                "tools": tools, "python": sys.version, "python_packages": packages,
+                "tools": tools, "openroad_version": version.strip(),
+                "python": sys.version, "python_packages": packages,
                 "toolchain": pins}
     save(work / "metadata.json", metadata)
     return metadata
@@ -270,7 +285,7 @@ def stage(name, work, fixture, timeout):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work-dir", required=True, type=Path)
-    parser.add_argument("--fixture-dir", type=Path, default=ROOT / ".cache/gcd-fixture-v1")
+    parser.add_argument("--fixture-dir", type=Path, default=ROOT / ".cache/gcd-fixture-v2")
     parser.add_argument("--stage", choices=(*STAGES, "all"), default="all")
     parser.add_argument("--timeout-seconds", type=int, default=600)
     args = parser.parse_args()

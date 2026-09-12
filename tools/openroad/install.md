@@ -35,6 +35,9 @@ numbers and attribute every difference to the edit.
 The executable is not the PDK or a complete flow. Obtain matching Liberty, LEF,
 RC/extraction data, constraints and Tcl scripts separately. The GCD guide pins
 its small test fixture; no tool compilation or Git submodule is required.
+Its upstream flow scripts are pinned to `openroad.source_revision`, checked
+against `openroad -version`. Do not pair a newer test flow with an older binary:
+OpenSTA and routing Tcl APIs can change even when package installation succeeds.
 
 See [official OpenROAD build/install documentation](https://openroad.readthedocs.io/en/latest/user/Build.html)
 for platform-specific package alternatives. Check disk space before large downloads.

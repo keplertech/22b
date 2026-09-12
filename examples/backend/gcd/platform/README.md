@@ -10,6 +10,11 @@ Use the [packaged tools](../../../../tools/README.md).
 - [fetch_fixture.py](fetch_fixture.py) downloads only the pinned fixture data.
   Its argument is a destination directory. Existing complete caches are
   checksum-verified; incomplete or modified caches require a fresh path.
+  The three upstream flow scripts (`helpers.tcl`, `flow_helpers.tcl`, `flow.tcl`)
+  come from `openroad.source_revision`, matching the packaged binary's API.
+  The PDK, platform variables and remaining data keep `gcd.fixture_revision`.
+  Both revisions are recorded and checked in the download manifest. Use the
+  new `.cache/gcd-fixture-v2` cache; do not overwrite a previous experiment's data.
 - [run.tcl](run.tcl) is the same physical setup for any baseline or candidate.
   It takes absolute `GCD_RUN_DIR`, `GCD_TEST_DIR`, `GCD_INPUT`, and `GCD_SDC`
   environment paths. `GCD_TEST_DIR` is the downloaded fixture's `test/` directory.
@@ -23,3 +28,7 @@ The wrapper writes setup/hold/electrical/power reports, metrics, final physical
 files, and completion/routing/DRC markers. Use a fresh stage directory and the
 same package for both designs. Never reuse the historical demonstration as
 the baseline of a run with a different package.
+
+The matching upstream flow selects its thread count with
+`getconf _NPROCESSORS_ONLN`. Run both designs on the same host. The regression
+checks `openroad -version` against the pinned source revision before running.

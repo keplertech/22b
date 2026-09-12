@@ -8,8 +8,12 @@ import urllib.request
 
 
 ROOT = Path(__file__).resolve().parents[4]
-REVISION = json.loads((ROOT / "toolchain.json").read_text())["gcd"]["fixture_revision"]
+PINS = json.loads((ROOT / "toolchain.json").read_text())
+REVISION = PINS["gcd"]["fixture_revision"]
+FLOW_REVISION = PINS["openroad"]["source_revision"]
 BASE = f"https://raw.githubusercontent.com/The-OpenROAD-Project/OpenROAD/{REVISION}/"
+FLOW_BASE = f"https://raw.githubusercontent.com/The-OpenROAD-Project/OpenROAD/{FLOW_REVISION}/"
+FLOW_FILES = ("test/helpers.tcl", "test/flow_helpers.tcl", "test/flow.tcl")
 FILES = (
     "LICENSE", "test/helpers.tcl", "test/flow_helpers.tcl", "test/flow.tcl",
     "test/sky130hd/sky130hd.vars", "test/sky130hd/sky130hd.tlef",
@@ -27,6 +31,7 @@ SOURCES = {
     }.get(name, name)
     for name in FILES
 }
+URLS = {name: (FLOW_BASE if name in FLOW_FILES else BASE) + SOURCES[name] for name in FILES}
 
 
 def digest(path):
@@ -35,7 +40,8 @@ def digest(path):
 
 def verify(directory):
     manifest = json.loads((directory / "manifest.json").read_text())
-    if (manifest["revision"] != REVISION or set(manifest["files"]) != set(FILES)
+    if (manifest["revision"] != REVISION or manifest.get("flow_revision") != FLOW_REVISION
+            or set(manifest["files"]) != set(FILES)
             or manifest.get("sources") != SOURCES):
         raise ValueError("Fixture revision or file inventory does not match")
     for name in FILES:
@@ -54,14 +60,15 @@ def fetch(directory):
         path = directory / name
         path.parent.mkdir(parents=True, exist_ok=True)
         print(f"Downloading {name}", flush=True)
-        with urllib.request.urlopen(BASE + SOURCES[name], timeout=30) as response:
+        with urllib.request.urlopen(URLS[name], timeout=30) as response:
             data = response.read()
         if not data or data.startswith(b"version https://git-lfs.github.com/spec/"):
             raise ValueError(f"Missing fixture content: {name}")
         path.write_bytes(data)
         hashes[name] = digest(path)
     (directory / "manifest.json").write_text(
-        json.dumps({"revision": REVISION, "sources": SOURCES, "files": hashes}, indent=2) + "\n"
+        json.dumps({"revision": REVISION, "flow_revision": FLOW_REVISION,
+                    "sources": SOURCES, "files": hashes}, indent=2) + "\n"
     )
     verify(directory)
     print(f"Fixture ready: {directory}")
