@@ -7,7 +7,7 @@ from pathlib import Path
 import urllib.request
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 REVISION = json.loads((ROOT / "toolchain.json").read_text())["gcd"]["fixture_revision"]
 BASE = f"https://raw.githubusercontent.com/The-OpenROAD-Project/OpenROAD/{REVISION}/"
 FILES = (

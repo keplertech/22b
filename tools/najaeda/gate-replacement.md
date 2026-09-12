@@ -21,8 +21,6 @@ Purpose: local structural replacement. This is not a constant-propagation helper
    Temporary overlapping drivers must not survive into an exported design.
 7. Export, reload and run SEC. Preserve the input file and record the script.
 
-For a majority carry stage, `x = majority(a,b,c)` equals
-`g | (p & c)`, where `g = a & b` and `p = a | b`. Combining group generate and
-propagate signals in a prefix network reduces serial carry dependence. Every
-original stage output with side consumers must still be reproduced, not only
-the final carry. See the complete [GCD example](../../examples/backend/gcd/README.md).
+Preserve every boundary output, including intermediate signals with consumers
+outside the replacement group. Reducing logic depth does not justify dropping
+those consumers or changing their behavior.

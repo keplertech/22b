@@ -16,6 +16,10 @@ Load only the tool skill relevant to the next operation. A gate-replacement
 task needs connectivity and replacement guidance, not constant-propagation
 helpers or every available example. The model/provider is the caller's choice.
 
+For a fresh example attempt, load its task and design/platform inputs, not its
+`reference/` solution or regression scripts. References are for explicit replay
+or comparison afterward, not hints for independent discovery.
+
 ## Run Contract
 
 1. Establish the top, input files, libraries, constraints, tool versions and

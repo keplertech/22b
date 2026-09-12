@@ -10,7 +10,7 @@ measurement. There is no chatbot runtime or model dependency in this repository.
 SKILL.md                   Parent orchestration skill
 flow/backend/              Physical-design analysis and improvement
 flow/rtl/                  RTL authoring and design changes
-examples/backend/gcd/      GCD carry-chain restructuring example
+examples/backend/gcd/      GCD design and independent model task
 examples/rtl/              RTL example conventions
 tools/                     Shared tool skills and package installation guides
 toolchain.json             Pinned package and fixture references
@@ -32,7 +32,7 @@ https://github.com/user-attachments/assets/deadc1db-22f3-4c32-8f59-9bbca4aa1ccd
 1. Read the [package setup](tools/README.md). Kepler Formal uses Nix and the
    public `keplertech` Cachix cache; no source submodules are required in 22b.
 2. Choose the [backend](flow/backend/SKILL.md) or [RTL](flow/rtl/SKILL.md) flow.
-3. For a concrete backend example, follow [GCD](examples/backend/gcd/README.md).
+3. For a concrete backend attempt, give the model the [GCD task](examples/backend/gcd/task.md).
 
 An agent can read these files directly. [AGENTS.md](AGENTS.md) points agents to
 the same entry point; human users can follow the same procedures. Skills are
@@ -55,5 +55,8 @@ Never claim a PPA improvement from gate counts alone.
 python3 -m unittest discover -s tests -v
 ```
 
-CI runs these offline checks; it does not install a model or silently launch
-an expensive physical-design run. The GCD guide describes the separate tool run.
+The [skills workflow](.github/workflows/skills-verify.yml) runs these offline checks.
+The separate [GCD reference workflow](.github/workflows/gcd-reference-verify.yml)
+tests package installation and real tool stages using the saved solution under
+[reference/](examples/backend/gcd/reference/README.md). It uses no model, and its
+success does not establish that a model can solve the independent task.

@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "examples/backend/gcd"
-TREE = ast.parse((EXAMPLE / "edit.py").read_text())
+TREE = ast.parse((EXAMPLE / "reference/edit.py").read_text())
 ROWS = next(ast.literal_eval(node.value) for node in ast.walk(TREE)
             if isinstance(node, ast.Assign)
             and any(isinstance(t, ast.Name) and t.id == "rows" for t in node.targets))
@@ -138,12 +138,12 @@ class GcdTests(unittest.TestCase):
             EDIT["edit"](top)
 
     def test_original_input_hashes(self):
-        history = json.loads((EXAMPLE / "historical-results.json").read_text())
+        history = json.loads((EXAMPLE / "reference/historical-results.json").read_text())
         for name, key in [("input.v", "input_sha256"), ("constraints.sdc", "sdc_sha256")]:
             self.assertEqual(hashlib.sha256((EXAMPLE / name).read_bytes()).hexdigest(), history[key])
 
     def test_historical_provenance_consistent(self):
-        history = json.loads((EXAMPLE / "historical-results.json").read_text())
+        history = json.loads((EXAMPLE / "reference/historical-results.json").read_text())
         toolchain = json.loads((ROOT / "toolchain.json").read_text())
         self.assertEqual(history["kind"], "historical_demo_not_current_validation")
         self.assertEqual(history["fixture_revision"], toolchain["gcd"]["fixture_revision"])
@@ -155,7 +155,7 @@ class FixtureTests(unittest.TestCase):
         quiet = patch("builtins.print")
         quiet.start()
         self.addCleanup(quiet.stop)
-        spec = importlib.util.spec_from_file_location("fetch_fixture", EXAMPLE / "fetch_fixture.py")
+        spec = importlib.util.spec_from_file_location("fetch_fixture", EXAMPLE / "platform/fetch_fixture.py")
         self.fetcher = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.fetcher)
         self.temp = tempfile.TemporaryDirectory()

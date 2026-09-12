@@ -29,4 +29,5 @@ routing DRCs and proof coverage. Label units and power assumptions. Do not chang
 the clock period to manufacture an improvement. If tools or settings change,
 rerun the baseline and keep the earlier results as a separate experiment.
 
-Use [GCD](../../examples/backend/gcd/README.md) for a small concrete example.
+Use the [GCD task](../../examples/backend/gcd/task.md) for an independent attempt.
+Keep its `reference/` solution out of the initial model context.

@@ -1,0 +1,103 @@
+name: GCD packaged reference
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/gcd-reference-verify.yml'
+      - 'scripts/gcd_reference_regression.py'
+      - 'examples/backend/gcd/**'
+      - 'toolchain.json'
+      - 'tools/**'
+      - 'tests/**'
+  pull_request:
+    paths:
+      - '.github/workflows/gcd-reference-verify.yml'
+      - 'scripts/gcd_reference_regression.py'
+      - 'examples/backend/gcd/**'
+      - 'toolchain.json'
+      - 'tools/**'
+      - 'tests/**'
+
+permissions:
+  contents: read
+
+jobs:
+  reference-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUN: runs/gcd-reference
+      PYTHONPATH: ''
+      NAJAEDA_SRC: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Offline checks
+        run: python -m unittest discover -s tests -v
+      - name: Install Nix (reuse an existing installation)
+        uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            max-jobs = 0
+            builders =
+      - name: Configure read-only keplertech binary cache
+        uses: cachix/cachix-action@v17
+        with:
+          name: keplertech
+          skipPush: true
+      - name: Obtain pinned native packages (cached binaries only)
+        run: |
+          mkdir -p .cache/gcd-tools
+          nix --version
+          df -h . /nix
+          kf=$(python -c 'import json; print(json.load(open("toolchain.json"))["kepler_formal"]["installable"])')
+          openroad=$(python -c 'import json; p=json.load(open("toolchain.json")); print(p["nixpkgs"]+"#"+p["openroad"]["nixpkgs_attribute"])')
+          nix build --max-jobs 0 --builders '' --out-link .cache/gcd-tools/kepler "$kf"
+          nix build --max-jobs 0 --builders '' --out-link .cache/gcd-tools/openroad "$openroad"
+          echo "$PWD/.cache/gcd-tools/kepler/bin" >> "$GITHUB_PATH"
+          echo "$PWD/.cache/gcd-tools/openroad/bin" >> "$GITHUB_PATH"
+          nix path-info --json ./.cache/gcd-tools/kepler ./.cache/gcd-tools/openroad > .cache/gcd-tools/nix-paths.json
+      - name: Install published NajaEDA and Naja-Scope wheels
+        run: |
+          python -m venv .cache/gcd-python
+          .cache/gcd-python/bin/python -m pip install --only-binary=:all: -r tools/python-requirements.txt
+          .cache/gcd-python/bin/python -m pip check
+          .cache/gcd-python/bin/python -m pip freeze > .cache/gcd-tools/python-packages.txt
+          echo "$PWD/.cache/gcd-python/bin" >> "$GITHUB_PATH"
+      - name: Verify packaged CLIs and prepare immutable inputs
+        run: |
+          openroad -version | tee .cache/gcd-tools/openroad-version.txt
+          kepler-formal --help > .cache/gcd-tools/kepler-help.txt
+          python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage prepare
+      - name: Baseline OpenROAD physical design flow
+        run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage baseline
+      - name: Naja-Scope MCP connectivity inspection
+        run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage inspect
+      - name: Apply the reviewed reference edit with NajaEDA
+        run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage edit
+      - name: Kepler Formal SEC (full proof required for this reference)
+        run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage proof
+      - name: Candidate OpenROAD physical design flow
+        run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage candidate
+      - name: Compare fresh results and require timing improvement
+        run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage compare
+      - name: Preserve package identities, reports and proof evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gcd-packaged-reference
+          path: |
+            runs/gcd-reference/
+            .cache/gcd-tools/*.json
+            .cache/gcd-tools/*.txt
+          if-no-files-found: warn
+          retention-days: 14

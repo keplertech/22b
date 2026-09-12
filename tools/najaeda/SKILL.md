@@ -32,5 +32,6 @@ run [Kepler SEC](../kepler-formal/SKILL.md); cell-count changes are diagnostics,
 not a correctness proof. Detect internal-net/port naming collisions when signals
 have been disconnected; Verilog names in one module can re-alias separate objects.
 
-The [GCD script](../../examples/backend/gcd/edit.py) is a design-specific worked
-example, not a generic optimization pass.
+The [GCD reference script](../../examples/backend/gcd/reference/edit.py) is a
+design-specific worked solution, not a generic optimization pass. Read it only
+for explicit replay or comparison, not when solving the GCD task independently.

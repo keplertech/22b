@@ -15,11 +15,13 @@ top and loaded design with `status` before querying.
   side consumers, top ports and fanout outside the reported critical path.
 - Use `trace_cone` to inspect the surrounding logic and sequential frontier.
 
-For the GCD example, `gcd._219_.X` is a fully qualified output pin. A verified
-query shape is `trace_cone(direction="fanin", path="gcd._219_.X", max_frontier=20)`;
-use the tool's actual JSON schema when making the MCP call. Other examples are
-`get_loads(path="gcd._215_.X", limit=200)` and
-`get_drivers(path="gcd._215_.C", limit=200)`.
+Use fully qualified paths discovered in the loaded design. Query shapes are
+`trace_cone(direction="fanin", path="<top>.<instance>.<output>", max_frontier=20)`,
+`get_loads(path="<top>.<instance>.<output>", limit=200)`, and
+`get_drivers(path="<top>.<instance>.<input>", limit=200)`.
+Replace the placeholders with observed names and use the installed tool's JSON
+schema. Design-specific target pins belong to an analysis or reference, not this
+shared skill.
 
 Check truncation/limits before claiming complete connectivity. Save query inputs
 and returned evidence with the analysis. Scope establishes structure, not delay
