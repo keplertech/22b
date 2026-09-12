@@ -104,11 +104,17 @@ def physical_summary(directory):
     metrics = json.loads((directory / "metrics.json").read_text())
     result = {"routing_drc": 0}
     for label, key in (("setup_ns", "DRT::worst_slack_max"), ("hold_ns", "DRT::worst_slack_min"),
-                       ("tns_ns", "DRT::tns_max"), ("area_um2", "DPL::design_area")):
+                       ("tns_ns", "DRT::tns_max"), ("area_um2", "GCD::final_design_area_um2")):
         value = metrics.get(key)
+        # The pinned OpenROAD's utl::metric serializes numeric values as strings.
+        if isinstance(value, str) and re.fullmatch(
+                r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", value.strip()):
+            value = float(value)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise ValueError(f"Missing/non-finite metric {key}")
         result[label] = value
+    if result["area_um2"] <= 0:
+        raise ValueError("Final design cell area must be positive")
     # Preserve the power report verbatim rather than guessing units or activity.
     result["power_report"] = (directory / "reports/power.rpt").read_text()
     return result

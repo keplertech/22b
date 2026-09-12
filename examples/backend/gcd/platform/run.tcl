@@ -42,7 +42,13 @@ report_power -corner $power_corner > [file join $reports power.rpt]
 report_worst_slack -max -digits 6 > [file join $reports worst_setup.rpt]
 report_worst_slack -min -digits 6 > [file join $reports worst_hold.rpt]
 report_tns -digits 6 > [file join $reports tns.rpt]
-report_design_area > [file join $reports area.rpt]
+# This revision's report_design_area does not support Tcl report redirection.
+# rsz::design_area returns square meters, excluding fillers, taps and endcaps.
+set final_area_um2 [expr {[rsz::design_area] * 1.0e12}]
+set area_report [open [file join $reports area.rpt] w]
+puts $area_report "Final design cell area: $final_area_um2 um^2"
+close $area_report
+utl::metric "GCD::final_design_area_um2" $final_area_um2
 write_db [file join $run_dir results gcd_final.odb]
 write_def [file join $run_dir results gcd_final.def]
 write_verilog -remove_cells $filler_cells [file join $run_dir results gcd_final.v]

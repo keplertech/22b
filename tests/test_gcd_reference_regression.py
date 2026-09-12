@@ -4,6 +4,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -35,7 +36,8 @@ class ReferenceTests(unittest.TestCase):
             (self.work / "results" / ("gcd_final." + ext)).write_text("physical data\n")
         (self.work / "tool.log").write_text("GCD_COMPLETE=1\nGCD_ROUTED=1\nGCD_FINAL_DRC=0\n")
         self.metrics = {"DRT::worst_slack_max": -0.6, "DRT::worst_slack_min": 0.48,
-                        "DRT::tns_max": -1.2, "DPL::design_area": 3931}
+                        "DRT::tns_max": -1.2, "DPL::design_area": 2691,
+                        "GCD::final_design_area_um2": 2696.217}
         (self.work / "metrics.json").write_text(json.dumps(self.metrics))
 
     def test_explicit_full_proof(self):
@@ -112,11 +114,113 @@ class ReferenceTests(unittest.TestCase):
 
     def test_missing_or_invalid_metrics_fail(self):
         self.physical_fixture()
-        for value in (None, float("nan"), float("inf"), "-0.6", True):
+        for value in (None, float("nan"), float("inf"), True, False, [], {}, "", " ",
+                      "NaN", "Inf", "-inf", "1e9999", "-0.6 ns", "0_1"):
             self.metrics["DRT::worst_slack_max"] = value
             (self.work / "metrics.json").write_text(json.dumps(self.metrics))
             with self.subTest(value=value), self.assertRaises(ValueError):
                 REPLAY.physical_summary(self.work)
+
+    def test_pinned_openroad_numeric_string_metrics(self):
+        self.physical_fixture()
+        # Match the types and timing values in the failing packaged CI artifact.
+        self.metrics.update({"DRT::worst_slack_max": "-0.5438407655920559",
+                             "DRT::worst_slack_min": "0.47656085981890706",
+                             "DRT::tns_max": "-3.1519827640091",
+                             "GCD::final_design_area_um2": "2.696217e3"})
+        (self.work / "metrics.json").write_text(json.dumps(self.metrics))
+        summary = REPLAY.physical_summary(self.work)
+        self.assertEqual(summary["setup_ns"], -0.5438407655920559)
+        self.assertEqual(summary["hold_ns"], 0.47656085981890706)
+        self.assertEqual(summary["tns_ns"], -3.1519827640091)
+        self.assertAlmostEqual(summary["area_um2"], 2696.217)
+
+    def test_area_is_final_not_placement_area(self):
+        self.physical_fixture()
+        self.assertEqual(REPLAY.physical_summary(self.work)["area_um2"], 2696.217)
+        del self.metrics["GCD::final_design_area_um2"]
+        (self.work / "metrics.json").write_text(json.dumps(self.metrics))
+        with self.assertRaisesRegex(ValueError, "GCD::final_design_area_um2"):
+            REPLAY.physical_summary(self.work)
+
+    def test_area_report_must_exist_and_be_nonempty(self):
+        self.physical_fixture()
+        path = self.work / "reports/area.rpt"
+        path.write_text("")
+        with self.assertRaisesRegex(ValueError, "Missing/empty report.*area.rpt"):
+            REPLAY.physical_summary(self.work)
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, "Missing/empty report.*area.rpt"):
+            REPLAY.physical_summary(self.work)
+
+    def test_invalid_final_area_rejected(self):
+        self.physical_fixture()
+        for value in (0, -1, "0", "-1", "NaN", "Infinity", None):
+            self.metrics["GCD::final_design_area_um2"] = value
+            (self.work / "metrics.json").write_text(json.dumps(self.metrics))
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                REPLAY.physical_summary(self.work)
+
+    @unittest.skipUnless(shutil.which("tclsh"), "Tcl interpreter is not installed")
+    def test_actual_tcl_wrapper_writes_final_area_report_and_metric(self):
+        # Execute the real wrapper with stubbed physical APIs, not an OpenROAD run.
+        fixture = self.work / "fixture"
+        (fixture / "sky130hd").mkdir(parents=True)
+        (fixture / "helpers.tcl").write_text('''
+namespace eval rsz {
+    proc design_area {} { return $::post_route_area_m2 }
+}
+namespace eval utl {
+    proc metric {name value} {
+        set output [open [file join $::run_dir metrics.tsv] a]
+        puts $output "$name\\t$value"
+        close $output
+    }
+}
+proc report_stub {args} {
+    if {[lindex $args end-1] ne ">"} { error "Expected report redirection" }
+    set output [open [lindex $args end] w]
+    puts $output "report data"
+    close $output
+}
+foreach name {report_checks report_check_types report_power report_worst_slack report_tns} {
+    interp alias {} $name {} report_stub
+}
+# Unlike the STA reporting commands, the pinned area command ignores redirection.
+proc report_design_area {args} { puts "Design area 2696 u^2 3% utilization." }
+proc write_stub {args} {
+    set output [open [lindex $args end] w]
+    puts $output "physical data"
+    close $output
+}
+foreach name {write_db write_def write_verilog write_sdc} {
+    interp alias {} $name {} write_stub
+}
+proc detailed_route_num_drvs {} { return 0 }
+proc design_is_routed {} { return 1 }
+''')
+        (fixture / "flow_helpers.tcl").write_text("")
+        (fixture / "sky130hd/sky130hd.vars").write_text("set power_corner tt\nset filler_cells {}\n")
+        (fixture / "flow.tcl").write_text('''
+utl::metric "DPL::design_area" 2691
+utl::metric "DRT::worst_slack_max" -0.5438407655920559
+utl::metric "DRT::worst_slack_min" 0.47656085981890706
+utl::metric "DRT::tns_max" -3.1519827640091
+set ::post_route_area_m2 2.696217e-9
+''')
+        directory = self.work / "baseline"
+        env = REPLAY.clean_env()
+        env.update(GCD_RUN_DIR=str(directory), GCD_TEST_DIR=str(fixture),
+                   GCD_INPUT=str(REPLAY.EXAMPLE / "input.v"),
+                   GCD_SDC=str(REPLAY.EXAMPLE / "constraints.sdc"))
+        REPLAY.run_command(directory, [shutil.which("tclsh"), str(REPLAY.PLATFORM / "run.tcl")],
+                           timeout=10, env=env)
+        metrics = dict(line.split("\t") for line in (directory / "metrics.tsv").read_text().splitlines())
+        (directory / "metrics.json").write_text(json.dumps(metrics))
+        report = (directory / "reports/area.rpt").read_text()
+        value = metrics["GCD::final_design_area_um2"]
+        self.assertEqual(report, f"Final design cell area: {value} um^2\n")
+        self.assertAlmostEqual(REPLAY.physical_summary(directory)["area_um2"], 2696.217)
 
     def test_fresh_timing_gain_and_hold(self):
         baseline = {"setup_ns": -0.6, "hold_ns": 0.48, "routing_drc": 0}
