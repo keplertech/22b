@@ -25,7 +25,8 @@ OpenROAD run to compare the results.
 
 https://github.com/user-attachments/assets/deadc1db-22f3-4c32-8f59-9bbca4aa1ccd
 
-46 seconds, no audio.
+46 seconds, no audio. [Download the MP4](https://github.com/keplertech/22b/raw/refs/heads/main/examples/backend/gcd/reference/media/demo.mp4)
+if the inline player is unavailable.
 
 ## Start
 

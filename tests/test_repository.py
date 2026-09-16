@@ -26,6 +26,17 @@ class RepositoryTests(unittest.TestCase):
         )
         self.assertNotIn("](examples/backend/gcd/media/demo.mp4)", demo)
 
+    def test_demo_has_repository_download_fallback(self):
+        readme = (ROOT / "README.md").read_text()
+        demo = readme.split("## Demo\n", 1)[1].split("\n## ", 1)[0]
+        media_path = "examples/backend/gcd/reference/media/demo.mp4"
+        self.assertIn(
+            f"[Download the MP4](https://github.com/keplertech/22b/raw/refs/heads/main/{media_path})",
+            demo,
+        )
+        with (ROOT / media_path).open("rb") as stream:
+            self.assertEqual(stream.read(12)[4:8], b"ftyp")
+
     def test_skill_frontmatter(self):
         self.assertEqual(len(SKILLS), 7)
         names = set()
