@@ -8,20 +8,21 @@ Package references are pinned in [toolchain.json](../toolchain.json).
 
 | Tool | Installation | Purpose |
 | --- | --- | --- |
-| Kepler Formal | [Nix + keplertech Cachix](kepler-formal/install.md) | SEC verification |
+| Kepler Formal | [Python-backed MCP + native wheels](kepler-formal/install.md) | SEC verification |
 | OpenROAD | [Nixpkgs package](openroad/install.md) | Physical design and reports |
 | NajaEDA | [Published Python wheel](najaeda/install.md) | Structural editing |
 | Naja-Scope | [Published Python wheel](naja-scope/install.md) | Read-only structural inspection through MCP |
 
-Nix supplies the native CLIs and, optionally, the Python interpreter. The Naja
-Python tools use published wheels in a project-local virtual environment; this
-is not yet a fully Nix-locked Python environment. Kepler's Nix package does not
-include the standalone NajaEDA Python API. No 22b source submodules are used.
+Nix supplies OpenROAD and, optionally, Python. Kepler Formal, NajaEDA and
+Naja-Scope use published wheels in a shared project-local virtual environment.
+The pure-Python Kepler MCP wrapper is packaged from a pinned Git revision until
+upstream publishes a distribution. This is not a fully Nix-locked Python
+environment. No 22b source submodules or native source builds are used.
 
 ## Nix Prerequisites
 
 Install Nix following the [official installation guide](https://nix.dev/install-nix).
-Kepler's upstream instructions require Nix 2.35+ with `nix-command` and `flakes`.
+The workflow uses Nix 2.35 with `nix-command` and `flakes` for OpenROAD.
 Pass `--extra-experimental-features 'nix-command flakes'` if those features are
 not enabled. Check `nix --version` and available disk space first.
 
@@ -33,8 +34,8 @@ Do not disable signature verification to work around a cache miss.
 CI uses [install-cached-package.sh](install-cached-package.sh) to check the exact
 native output in the local store or designated cache before installing. Cache
 misses fail early, with package references, logs and exit codes retained. Each
-native tool has its own installable in `toolchain.json`; the general Nixpkgs pin
-below is for Python and auxiliary tools, not an implicit OpenROAD version.
+Nix installable is pinned in `toolchain.json`; the general Nixpkgs pin below is
+for Python and auxiliary tools, not an implicit OpenROAD version.
 
 For an isolated Python interpreter:
 
@@ -45,6 +46,7 @@ nix shell --max-jobs 0 --builders '' \
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --only-binary=:all: -r tools/python-requirements.txt
+python -m pip install --no-deps -r tools/kepler-formal/mcp-requirements.txt
 python -m pip check
 python -m pip freeze > .venv/resolved-packages.txt
 ```

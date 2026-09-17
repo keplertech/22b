@@ -73,13 +73,14 @@ class RepositoryTests(unittest.TestCase):
         manifest = json.loads((ROOT / "toolchain.json").read_text())
         self.assertEqual(manifest["schema_version"], 1)
         self.assertRegex(manifest["nixpkgs"], r"/[0-9a-f]{40}$")
-        self.assertRegex(manifest["kepler_formal"]["installable"], r"rev=[0-9a-f]{40}&submodules=1#kepler-formal$")
-        self.assertEqual(manifest["kepler_formal"]["cache"], "https://keplertech.cachix.org")
+        mcp = manifest["kepler_formal_mcp"]
+        self.assertRegex(mcp["revision"], r"^[0-9a-f]{40}$")
+        self.assertEqual(mcp["repository"], "https://github.com/keplertech/kepler-formal-mcp.git")
+        self.assertEqual((ROOT / "tools/kepler-formal/mcp-requirements.txt").read_text().strip(),
+                         f"kepler-formal-mcp @ git+{mcp['repository']}@{mcp['revision']}")
         self.assertRegex(manifest["gcd"]["fixture_revision"], r"^[0-9a-f]{40}$")
         self.assertRegex(manifest["openroad"]["source_revision"], r"^[0-9a-f]{40}$")
         self.assertFalse((ROOT / ".gitmodules").exists())
-        self.assertIn(manifest["kepler_formal"]["installable"],
-                      (ROOT / "tools/kepler-formal/install.md").read_text())
         requirements = (ROOT / "tools/python-requirements.txt").read_text().splitlines()
         self.assertEqual(set(requirements),
                          {f"{key}=={value}" for key, value in manifest["python_packages"].items()})

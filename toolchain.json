@@ -1,11 +1,10 @@
 {
   "schema_version": 1,
   "nixpkgs": "github:NixOS/nixpkgs/8ce4ef6cb6f871616146b9fe26d2a5ae594e94fe",
-  "kepler_formal": {
-    "installable": "git+https://github.com/keplertech/kepler-formal?rev=0e0abf2aa6979e337aead8996983952dc1742530&submodules=1#kepler-formal",
-    "cache": "https://keplertech.cachix.org",
-    "systems": ["x86_64-linux", "aarch64-darwin"],
-    "cache_availability": "not yet verified for this pin"
+  "kepler_formal_mcp": {
+    "repository": "https://github.com/keplertech/kepler-formal-mcp.git",
+    "revision": "84ac7bfa02c103274df30bba9d94f585b1ec4213",
+    "version": "0.1.0"
   },
   "openroad": {
     "installable": "github:NixOS/nixpkgs/b6018f87da91d19d0ab4cf979885689b469cdd41#openroad",
@@ -17,7 +16,13 @@
     }
   },
   "python": {"nixpkgs_attribute": "python313"},
-  "python_packages": {"najaeda": "0.7.20", "naja-scope": "0.1.11"},
+  "python_packages": {
+    "najaeda": "0.7.24",
+    "naja-scope": "0.1.11",
+    "kepler-formal": "0.5.0",
+    "mcp": "1.30.0",
+    "PyYAML": "6.0.3"
+  },
   "gcd": {
     "fixture_revision": "a9147cf3aebe65e058bb3fa89c1f9e524488dbb8",
     "historical_openroad_image": "openroad/orfs@sha256:751a77afcade9882b51427e6d9d079b8e270e7a8f4aa66df2d0659457d1c29fd"

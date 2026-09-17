@@ -49,11 +49,6 @@ jobs:
             experimental-features = nix-command flakes
             max-jobs = 0
             builders =
-      - name: Configure read-only keplertech binary cache
-        uses: cachix/cachix-action@v17
-        with:
-          name: keplertech
-          skipPush: true
       - name: Obtain cached OpenROAD (fail before downloading dependencies on a cache miss)
         run: |
           mkdir -p .cache/gcd-tools
@@ -62,23 +57,17 @@ jobs:
           cache=$(python -c 'import json; print(json.load(open("toolchain.json"))["openroad"]["cache"])')
           bash tools/install-cached-package.sh openroad "$openroad" "$cache" .cache/gcd-tools
           echo "$PWD/.cache/gcd-tools/openroad/bin" >> "$GITHUB_PATH"
-      - name: Obtain cached Kepler Formal
-        run: |
-          kf=$(python -c 'import json; print(json.load(open("toolchain.json"))["kepler_formal"]["installable"])')
-          cache=$(python -c 'import json; print(json.load(open("toolchain.json"))["kepler_formal"]["cache"])')
-          bash tools/install-cached-package.sh kepler "$kf" "$cache" .cache/gcd-tools
-          echo "$PWD/.cache/gcd-tools/kepler/bin" >> "$GITHUB_PATH"
-      - name: Install published NajaEDA and Naja-Scope wheels
+      - name: Install native Python wheels and pinned pure-Python Kepler MCP package
         run: |
           python -m venv .cache/gcd-python
           .cache/gcd-python/bin/python -m pip install --only-binary=:all: -r tools/python-requirements.txt
+          .cache/gcd-python/bin/python -m pip install --no-deps -r tools/kepler-formal/mcp-requirements.txt
           .cache/gcd-python/bin/python -m pip check
           .cache/gcd-python/bin/python -m pip freeze > .cache/gcd-tools/python-packages.txt
           echo "$PWD/.cache/gcd-python/bin" >> "$GITHUB_PATH"
-      - name: Verify packaged CLIs and prepare immutable inputs
+      - name: Verify package identities and prepare immutable inputs
         run: |
           openroad -version | tee .cache/gcd-tools/openroad-version.txt
-          kepler-formal --help > .cache/gcd-tools/kepler-help.txt
           python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage prepare
       - name: Baseline OpenROAD physical design flow
         run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage baseline
@@ -86,7 +75,7 @@ jobs:
         run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage inspect
       - name: Apply the reviewed reference edit with NajaEDA
         run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage edit
-      - name: Kepler Formal SEC (full proof required for this reference)
+      - name: Kepler Formal MCP / Python SEC (full proof required for this reference)
         run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage proof
       - name: Candidate OpenROAD physical design flow
         run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage candidate

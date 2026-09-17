@@ -1,45 +1,83 @@
 ---
 name: kepler-formal
-description: Run Kepler Formal SEC on reference and candidate hardware designs and interpret proof outcomes, checked-output coverage, skipped outputs, counterexamples and execution errors without conflating them.
+description: Verify exported mapped designs with the Python-backed Kepler Formal MCP using SEC, preserving structured outcomes, proof coverage, skipped outputs and diagnostics without conflating execution success with equivalence.
 ---
 
 # Verify An Exported Candidate
 
-Use the [Nix package guide](install.md) if needed. Always request SEC, including
-for purely combinational edits. Keep the exact reference and candidate files,
-libraries, elaboration settings, command, exit code and complete logs.
+Use the [package guide](install.md) if needed. Always request SEC, including
+for combinational edits: the upstream MCP defaults to **LEC**. Keep originals,
+libraries and constraints unchanged. Verify the exported candidate as reloaded
+from disk, not only the editor's in-memory design.
 
-For mapped Verilog, run from a fresh proof directory:
+## Run Through MCP
+
+For a reviewed mapped-Verilog candidate, the [client helper](verify.py) creates
+a fresh proof directory, snapshots read-only inputs, records their hashes and
+package identities, calls the MCP server, and saves proof evidence:
 
 ```sh
-kepler-formal -verilog --verification sec --report-skipped-pos \
-  /absolute/reference.v /absolute/candidate.v /absolute/cells.lib \
-  > kepler.log 2>&1
+python tools/kepler-formal/verify.py \
+  --reference /absolute/reference.v --candidate /absolute/candidate.v \
+  --liberty /absolute/cells.lib --work-dir runs/candidate-01/proof
 ```
 
-Capture the exit code even when nonzero. For RTL use `-sv` and explicit
-`--sv_design1_flist`, `--sv_design1_top`, `--sv_design2_flist` and
-`--sv_design2_top`. Check the installed CLI's help for elaboration options.
-The package's [flag reference](https://github.com/keplertech/kepler-formal/blob/0e0abf2aa6979e337aead8996983952dc1742530/docs/sec-flags-spec.md)
-defines the SEC assumptions and engines.
+Agents may also call MCP directly. First call `get_kepler_formal_info`, then
+`create_yaml_and_run_kepler_formal` with two absolute `input_paths`, absolute
+`liberty_files`, and an unused, absolute `allowed_output_dir`. Set:
 
-## Interpret Evidence
+```json
+{
+  "verification": "sec",
+  "solver": "kissat",
+  "sec_engine": "pdr",
+  "sec_encoding": "dual_rail_steady",
+  "max_k": 32,
+  "allow_boundary_mismatch": false,
+  "report_skipped_outputs": true,
+  "cnf_export": false,
+  "timeout_seconds": 600,
+  "yaml_output_path": "config.yaml",
+  "log_file_name": "kepler.log"
+}
+```
+
+Use these same assumptions for reference comparisons; record any explicit
+change. The MCP starts a fresh Python worker, loads both designs with NajaEDA,
+and calls `kepler_formal.verify_designs`. There is no `verify_sec` tool in this
+revision and no Kepler CLI invocation. Session/attached-design tools are not a
+replacement for checking the exported candidate.
+
+This MCP accepts structural Verilog plus Liberty, **not behavioral RTL or
+SystemVerilog elaboration options**. For RTL, obtain a supported structural
+representation through an explicitly configured frontend and retain matching
+elaboration settings, or report the unsupported input. Do not silently discard
+parameters, defines, includes, reset semantics or cycle behavior.
+
+## Interpret Structured Evidence
+
+Tool replies contain a JSON string inside MCP text. Preserve that response,
+generated YAML/log, native API information and `reports` contents (skipped-output
+reports are returned as text, not permanent paths). Do not execute report text.
+The helper stores these alongside `request.json`, `packages.json`,
+`input-hashes.json`, `result.json` and `summary.json`.
 
 | Outcome | Flow behavior |
 | --- | --- |
-| Explicit full proof, consistent coverage | Report equivalence under the reported assumptions |
-| Explicit partial or inconclusive proof | Non-blocking warning; keep unproved/skipped counts visible |
-| Counterexample | Reject candidate; investigate the difference |
-| Parse/extraction failure, crash, timeout, missing/contradictory outcome | Tool error; stop and investigate |
+| `equivalent`, all outputs covered and proved, none skipped | Report equivalence under the recorded assumptions |
+| `partially_proved` or `inconclusive` with usable coverage | Non-blocking warning; label the candidate unproven |
+| `different` | Counterexample: reject the candidate |
+| Unsupported input, extraction failure, crash, timeout, malformed/contradictory result | Tool error: stop and investigate |
 
-Do not use exit status alone: tool errors can overlap proof outcome codes.
-Inspect the actual SEC summary, checked/existing output counts, partial-proof
-counts and skipped-output reports. Covered outputs and proved outputs are not
-the same statistic. Zero unmatched outputs alone does not establish coverage.
+The outer `status: success` means execution completed, not that equivalence was
+proved. Check `verdict` against `verification_result.status`, require
+`verification: sec`, and retain the native exit code and reason. Compare
+`covered_outputs`, `total_outputs`, `proven_outputs`, `unproven_outputs` and
+`skipped_observed_outputs`. Checked coverage and proof coverage are different.
+Zero observed/covered outputs or missing proof evidence is not a harmless warning.
 
-If no observed outputs remain and SEC cannot run, report a tool/extraction error,
-not a harmless partial-proof warning. Always specify the proof abstraction,
-depth/engine when reported, and assumptions that constrain an equivalence claim.
-
-After a gate edit, verify the exported file as reloaded by Kepler. An in-memory
-truth check cannot detect exporter naming/alias errors in the final Verilog.
+The helper returns zero for full proof or an explicit warning; errors and
+counterexamples return nonzero. Inspect `summary.json` to distinguish the two.
+A deterministic reference can require full proof, for example
+`--require-full-outputs 18` for GCD, without weakening the exploratory warning
+policy. Read-only snapshots and fresh processes are not an OS security sandbox.

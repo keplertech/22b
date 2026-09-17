@@ -17,8 +17,17 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("gcd_replay", ROOT / "scripts/gcd_reference_regression.py")
 REPLAY = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(REPLAY)
-COVERAGE = "SEC checked-output coverage: 100.00% (18/18 covered/existing outputs).\n"
-PROVED = COVERAGE + "SEC proved equivalence under the dual-rail steady-state abstraction at k = 5.\n"
+
+
+def proof_result(status="equivalent", total=18, covered=18, proven=18):
+    return {"status": "success", "exit_code": 0, "verdict": status,
+            "reports": {name: "" for name in REPLAY.SEC.REPORTS},
+            "verification_result": {
+                "status": status, "exit_code": 0, "verification": "sec",
+                "total_outputs": total, "covered_outputs": covered, "proven_outputs": proven,
+                "coverage_percent": 100 * covered / total if total else None,
+                "equivalent": status == "equivalent", "conclusive": status == "equivalent",
+                "unproven_outputs": [], "skipped_observed_outputs": [], "bound": 6}}
 
 
 class ReferenceTests(unittest.TestCase):
@@ -41,7 +50,7 @@ class ReferenceTests(unittest.TestCase):
         (self.work / "metrics.json").write_text(json.dumps(self.metrics))
 
     def test_explicit_full_proof(self):
-        self.assertEqual(REPLAY.require_full_sec(PROVED, 0)["proved_outputs"], 18)
+        self.assertEqual(REPLAY.require_full_sec(proof_result())["proved_outputs"], 18)
 
     def test_openroad_binary_must_match_flow_revision(self):
         revision = json.loads((ROOT / "toolchain.json").read_text())["openroad"]["source_revision"]
@@ -78,16 +87,15 @@ class ReferenceTests(unittest.TestCase):
 
     def test_partial_proof_is_not_a_reference_pass(self):
         with self.assertRaisesRegex(ValueError, "partial proof is not a mismatch"):
-            REPLAY.require_full_sec(COVERAGE + "SEC partially proved equivalence: 8/18", 0)
+            REPLAY.require_full_sec(proof_result("partially_proved", proven=8))
 
     def test_counterexample_missing_coverage_and_tool_errors_fail(self):
-        cases = [(PROVED, 2), ("No difference was found", 0), (COVERAGE + "counterexample", 0),
-                 (PROVED.replace("18/18", "0/0"), 0), (PROVED.replace("18/18", "17/18"), 0),
-                 (PROVED.replace("18/18", "1/1"), 0), (PROVED.replace("100.00%", "99.00%"), 0),
-                 (COVERAGE + PROVED, 0), (COVERAGE, 0)]
-        for log, code in cases:
-            with self.subTest(log=log, code=code), self.assertRaises(ValueError):
-                REPLAY.require_full_sec(log, code)
+        cases = [{"status": "success"}, dict(proof_result(), exit_code=2),
+                 proof_result("different"), proof_result(total=0, covered=0, proven=0),
+                 proof_result(covered=17, proven=17), proof_result(total=1, covered=1, proven=1)]
+        for result in cases:
+            with self.subTest(result=result), self.assertRaises(ValueError):
+                REPLAY.require_full_sec(result)
 
     def test_fresh_physical_reports_required(self):
         self.physical_fixture()

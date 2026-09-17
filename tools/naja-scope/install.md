@@ -1,12 +1,12 @@
 # Install Naja-Scope
 
-Use the [shared Python environment](../README.md). The initial pair is
-`naja-scope==0.1.11` with `najaeda==0.7.20`; see the
+Use the [shared Python environment](../README.md). The pinned pair is
+`naja-scope==0.1.11` with `najaeda==0.7.24`; see the
 [published scope package](https://pypi.org/project/naja-scope/0.1.11/).
 
 ```sh
 . .venv/bin/activate
-python -m pip install --only-binary=:all: 'najaeda==0.7.20' 'naja-scope==0.1.11'
+python -m pip install --only-binary=:all: 'najaeda==0.7.24' 'naja-scope==0.1.11'
 python -m pip check
 NAJA_SCOPE_ENABLE_PYTHON=0 naja-scope-mcp
 ```

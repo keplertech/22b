@@ -14,8 +14,12 @@ whether state, reset or cycle behavior changes. Use the caller's installed RTL
 parser/linter and simulation tests; keep their commands and logs.
 
 Run [Kepler SEC](../../tools/kepler-formal/SKILL.md) on the reference and candidate
-with matched elaboration settings. A pipeline-latency change needs an explicitly
-supported comparison contract; do not assume ordinary cycle-aligned equivalence.
+with matched elaboration settings. The current Python-backed MCP loads mapped
+structural Verilog and Liberty, not behavioral RTL/SystemVerilog. An explicitly
+configured frontend must provide supported structural inputs; otherwise report
+that verification is unsupported rather than claiming an RTL proof. A
+pipeline-latency change needs an explicitly supported comparison contract; do
+not assume ordinary cycle-aligned equivalence.
 
 For a new design with no reference, record that SEC against a specification is
 not available. Establish functional tests or a trusted executable reference;

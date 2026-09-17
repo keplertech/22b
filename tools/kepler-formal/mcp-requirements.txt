@@ -1,0 +1,1 @@
+kepler-formal-mcp @ git+https://github.com/keplertech/kepler-formal-mcp.git@84ac7bfa02c103274df30bba9d94f585b1ec4213

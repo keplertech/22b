@@ -30,8 +30,9 @@ if the inline player is unavailable.
 
 ## Start
 
-1. Read the [package setup](tools/README.md). Kepler Formal uses Nix and the
-   public `keplertech` Cachix cache; no source submodules are required in 22b.
+1. Read the [package setup](tools/README.md). Kepler Formal runs through its
+   Python-backed MCP with native wheels; OpenROAD uses Nix. No source submodules
+   are required in 22b.
 2. Choose the [backend](flow/backend/SKILL.md) or [RTL](flow/rtl/SKILL.md) flow.
 3. For a concrete backend attempt, give the model the [GCD task](examples/backend/gcd/task.md).
 

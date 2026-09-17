@@ -10,7 +10,7 @@ saved NajaEDA edit, SEC, and candidate physical flow. It preserves fresh evidenc
 and compares the new measurements, not the historical values below. It requires
 full SEC proof for this known small reference case; this stronger test assertion
 does not change the shared policy for exploratory partial/inconclusive proofs.
-The full Nix-package regression has not yet been validated end to end.
+Verification uses the Python-backed Kepler Formal MCP, not the legacy Nix CLI.
 
 Small mapped SKY130HD GCD design: 249 original leaf cells, 4.36 ns clock period.
 Five serial majority gates (`_215_` through `_219_`) are replaced with a 31-gate
@@ -45,14 +45,10 @@ python scripts/gcd_reference_regression.py --work-dir runs/gcd-reference
 The run directory must not already exist. Installation belongs to the workflow
 and [package guides](../../../../tools/README.md), not the model task.
 
-Follow [tool installation](../../../../tools/README.md). Use the same OpenROAD package
-for both runs. This fresh Nix-packaged flow has not yet been validated end to end;
-the prior demo used the Docker image recorded in `toolchain.json`.
-
-The published NajaEDA 0.7.20 wheel has been checked on Apple Silicon: this script
-executes, exports and reloads a 275-cell candidate. Naja-Scope 0.1.11 also loads
-the reference and queries its fanout through MCP. These package smoke checks
-are not a new SEC proof or an OpenROAD timing measurement.
+Follow [tool installation](../../../../tools/README.md). Use the same OpenROAD
+package for both runs. The prior demo used the Docker image recorded in
+`toolchain.json`; do not substitute those historical measurements for a new run.
+The shared Python environment pins Kepler Formal, NajaEDA and both MCP servers.
 
 From the repository root, in the Python environment with NajaEDA installed:
 
@@ -123,23 +119,20 @@ tests; those checks do not replace SEC of the exported candidate.
 ## 4. Prove With Kepler SEC
 
 ```sh
-mkdir "$RUN/proof"
-(
-  cd "$RUN/proof"
-  # Capture nonzero proof outcomes without losing their logs.
-  set +e
-  kepler-formal -verilog --verification sec --report-skipped-pos \
-    "$EXAMPLE/input.v" "$RUN/candidate.v" "$LIBERTY" > kepler.log 2>&1
-  rc=$?
-  printf '%s\n' "$rc" > exit-code.txt
-)
+python tools/kepler-formal/verify.py \
+  --reference "$EXAMPLE/input.v" --candidate "$RUN/candidate.v" \
+  --liberty "$LIBERTY" --work-dir "$RUN/proof" --require-full-outputs 18
+cat "$RUN/proof/summary.json"
 cat "$RUN/proof/kepler.log"
 ```
 
 **Stop and interpret the proof before running the next stage.** Follow the
 [SEC outcome policy](../../../../tools/kepler-formal/SKILL.md): counterexamples and
-tool errors stop the flow; partial/inconclusive proof is a visible, non-blocking
-warning. These manual commands do not implement an automatic proof gate.
+tool errors stop the flow. Exploratory partial/inconclusive proof is a warning,
+but this known reference requires all 18 outputs to be proved. The command
+returns nonzero otherwise; do not run the next stage on failure. The automated
+replay enforces that ordering. Proof evidence includes the MCP response, checked
+and proved counts, skipped-output reports, native log and explicit SEC settings.
 
 ## 5. Candidate Physical Design
 

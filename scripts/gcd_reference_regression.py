@@ -24,6 +24,9 @@ PLATFORM = EXAMPLE / "platform"
 STAGES = ("prepare", "baseline", "inspect", "edit", "proof", "candidate", "compare")
 REPORTS = ("setup", "hold", "electrical", "power", "worst_setup", "worst_hold", "tns", "area")
 EXPECTED_OUTPUTS = 18
+SEC_SPEC = importlib.util.spec_from_file_location("kepler_mcp_verify", ROOT / "tools/kepler-formal/verify.py")
+SEC = importlib.util.module_from_spec(SEC_SPEC)
+SEC_SPEC.loader.exec_module(SEC)
 
 
 def digest(path):
@@ -71,20 +74,8 @@ def require_openroad_revision(version, revision):
         raise ValueError(f"OpenROAD version does not match the flow source revision {revision}: {version.strip()}")
 
 
-def require_full_sec(log, exit_code):
-    coverage = re.findall(
-        r"SEC checked-output coverage:\s*([\d.]+)%\s*\((\d+)/(\d+) covered/existing outputs\)", log)
-    if exit_code != 0 or len(coverage) != 1:
-        raise ValueError(f"SEC tool error or missing/ambiguous coverage (exit {exit_code})")
-    percent = float(coverage[0][0])
-    covered, total = map(int, coverage[0][1:])
-    if re.search(r"SEC (?:partially proved|verification did not prove|cannot run)|counterexample", log, re.I):
-        raise ValueError("Reference regression requires full SEC proof; partial proof is not a mismatch but is insufficient here")
-    if (not re.search(r"SEC proved equivalence\b", log) or percent != 100
-            or covered != total or total != EXPECTED_OUTPUTS):
-        raise ValueError("Reference regression requires explicit full SEC proof covering all 18 GCD outputs")
-    return {"status": "proved", "covered_outputs": covered, "existing_outputs": total,
-            "proved_outputs": total, "log": "proof/tool.log"}
+def require_full_sec(result):
+    return SEC.require_full(SEC.summarize(result), EXPECTED_OUTPUTS)
 
 
 def physical_summary(directory):
@@ -187,7 +178,8 @@ async def inspect_scope(directory, design, liberty):
 def input_hashes():
     return {str(path.relative_to(ROOT)): digest(path) for path in
             (EXAMPLE / "input.v", EXAMPLE / "constraints.sdc", REFERENCE / "edit.py",
-             PLATFORM / "run.tcl", ROOT / "toolchain.json", ROOT / "tools/python-requirements.txt")}
+             PLATFORM / "run.tcl", ROOT / "toolchain.json", ROOT / "tools/python-requirements.txt",
+             ROOT / "tools/kepler-formal/verify.py", ROOT / "tools/kepler-formal/mcp-requirements.txt")}
 
 
 def prepare(work, fixture):
@@ -196,12 +188,13 @@ def prepare(work, fixture):
     packages = {name: importlib.metadata.version(name) for name in pins["python_packages"]}
     if packages != pins["python_packages"]:
         raise ValueError(f"Python packages do not match toolchain.json: {packages}")
-    tools = {name: shutil.which(name) for name in ("openroad", "kepler-formal")}
+    tools = {"openroad": shutil.which("openroad")}
     if not all(tools.values()):
-        raise ValueError("Install the pinned OpenROAD and Kepler Formal packages first")
+        raise ValueError("Install the pinned OpenROAD package first")
     run_command(work / "openroad-version", [tools["openroad"], "-version"], timeout=30)
     version = (work / "openroad-version/tool.log").read_text()
     require_openroad_revision(version, pins["openroad"]["source_revision"])
+    save(work / "kepler-packages.json", SEC.package_identity())
     spec = importlib.util.spec_from_file_location("gcd_fixture", PLATFORM / "fetch_fixture.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -271,10 +264,8 @@ def stage(name, work, fixture, timeout):
             raise ValueError("Edit did not export a candidate")
         metadata["candidate_sha256"] = digest(work / "candidate.v")
     elif name == "proof":
-        code = run_command(directory, [metadata["tools"]["kepler-formal"], "-verilog", "--verification", "sec",
-                                       "--report-skipped-pos", str(design), str(work / "candidate.v"), str(liberty)],
-                           timeout=timeout, accept_nonzero=True)
-        save(directory / "summary.json", require_full_sec((directory / "tool.log").read_text(), code))
+        summary = SEC.run_sec(directory, design, work / "candidate.v", [liberty], timeout=timeout)
+        SEC.require_full(summary, EXPECTED_OUTPUTS)
     elif name == "compare":
         result = compare(*(json.loads((work / part / "summary.json").read_text())
                            for part in ("baseline", "candidate")))
