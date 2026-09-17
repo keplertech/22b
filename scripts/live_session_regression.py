@@ -101,12 +101,17 @@ session = LiveDesignSession({str(work / 'input.v')!r}, [{str(work / 'cells.lib')
     {str(work / 'session')!r}, development_mcp_checkout={str(checkout) if checkout else None!r})
 pid = os.getpid()
 golden = session.status()["golden_sha256"]
+native_ids = session.status()
+assert native_ids["golden_reference"]["db_id"] != native_ids["candidate_reference"]["db_id"]
+assert native_ids["golden_reference"]["design_id"] == native_ids["candidate_reference"]["design_id"]
 assert session.verify()["proved_outputs"] == 1
 ''')
             cell("02-first-edit", f'''
 result = session.apply_edit({FIRST!r})
 assert result["status"] == "proved" and result["revision"] == 1
 assert session.status()["golden_sha256"] == golden and os.getpid() == pid
+assert session.status()["golden_reference"] == native_ids["golden_reference"]
+assert session.status()["candidate_reference"] == native_ids["candidate_reference"]
 ''')
             cell("03-second-edit", f'''
 result = session.apply_edit({SECOND!r})

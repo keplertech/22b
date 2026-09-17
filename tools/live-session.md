@@ -15,8 +15,10 @@ optional kernel packages:
 python -m pip install --only-binary=:all: -r tools/session-requirements.txt
 ```
 
-The pinned Kepler Formal MCP includes the attached-session report API. Install
-its **pure-Python wrapper** without rebuilding or replacing native wheels:
+The pinned Kepler Formal MCP includes native-ID selection and attached-session
+reports. Upgrade the wrapper in both the kernel and the MCP server together;
+the older named-design protocol is not compatible. Install the **pure-Python
+wrapper** without rebuilding or replacing native wheels:
 
 ```sh
 python -m pip install --no-deps --force-reinstall -r tools/kepler-formal/mcp-requirements.txt
@@ -75,9 +77,21 @@ print(result["status"], result["proved_outputs"], result["existing_outputs"])
 `apply_edit` validates before mutation, invalidates the previous proof, edits
 the current candidate, and automatically runs SEC against original golden.
 It does not ask a model to select the verification mode. The MCP attaches to
-this interpreter and calls the native Python library on the registered designs.
+this interpreter and calls the native Python library using explicit native
+references: session ID, database ID, library ID, and design ID. It resolves
+those coordinates directly in the owning Naja universe; there is no
+golden/candidate name registry in MCP. These are 22b's local design roles only.
 All edits and verification share a native lock; concurrent work is rejected.
 New cells resolve against the candidate database, not golden's library.
+
+`session.status()` records `golden_reference` and `candidate_reference`.
+Each verification request and response must identify that exact pair,
+including the database and session IDs. Identical top-module names or local
+design IDs in the two databases cannot redirect verification. A mismatched
+pair in either the proof response or retrieved report is rejected.
+These native IDs are valid only for this live universe; they are not restart
+or reload handles. Do not destroy/reload designs or databases behind the
+session. Close it and obtain fresh references in a new session instead.
 
 Inspect `session.status()` for current revision, state and proof. Closing with
 `session.close()` detaches the MCP and destroys only this session's universe.

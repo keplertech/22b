@@ -175,8 +175,8 @@ class LiveDesignSession:
             self._golden_hash = _fingerprint(self._golden)
             self._candidate_hash = _fingerprint(self._candidate)
             self._bridge = SessionBridge(output_dir=self.directory / "formal").start()
-            self._bridge.register_design("golden", self._golden)
-            self._bridge.register_design("candidate", self._candidate)
+            self._golden_ref = self._bridge.design_reference(self._golden)
+            self._candidate_ref = self._bridge.design_reference(self._candidate)
             self._client = _McpClient(self.directory, timeout)
             if not {"attach_session", "verify_session", "get_session_reports"} <= self._client.tools:
                 raise RuntimeError("Install Kepler MCP with the attached-session reports API")
@@ -184,6 +184,10 @@ class LiveDesignSession:
             if attached.get("status") != "success" or attached.get("pid") != os.getpid():
                 raise RuntimeError("Kepler MCP did not attach to this kernel's designs")
             self._session_id = attached["session_id"]
+            if (attached.get("design_addressing") != "native-id-v1"
+                    or self._golden_ref["session_id"] != self._session_id
+                    or self._candidate_ref["session_id"] != self._session_id):
+                raise RuntimeError("Install matching Kepler MCP native-ID session support")
             info = self._client.call("get_kepler_formal_info", {})
             if info.get("status") != "success":
                 raise RuntimeError("Attached native API capability check failed")
@@ -202,6 +206,7 @@ class LiveDesignSession:
         result = {"kernel_pid": os.getpid(), "revision": self.revision, "state": self.state,
                   "golden_sha256": self._golden_hash, "proof": self.proof,
                   "candidate_sha256": self._candidate_hash,
+                  "golden_reference": self._golden_ref, "candidate_reference": self._candidate_ref,
                   "verification_pending": self._pending, "closed": self._closed}
         SEC.save(self.directory / "status.json", result)
         return json.loads(json.dumps(result))
@@ -289,7 +294,8 @@ class LiveDesignSession:
         self._attempt += 1
         directory = self.directory / f"proof-{self._attempt:04}"
         directory.mkdir()
-        arguments = {"session_id": self._session_id, "design1": "golden", "design2": "candidate",
+        arguments = {"session_id": self._session_id,
+                     "design1": dict(self._golden_ref), "design2": dict(self._candidate_ref),
                      "verification": "sec", "solver": "kissat", "max_k": 32,
                      "sec_engine": "pdr", "sec_encoding": "dual_rail_steady",
                      "allow_boundary_mismatch": False, "report_skipped_outputs": True,
@@ -305,6 +311,8 @@ class LiveDesignSession:
             self._check()
             if result.get("pid") != os.getpid() or result.get("session_id") != self._session_id:
                 raise ValueError("Verification came from a different session")
+            if result.get("design1") != self._golden_ref or result.get("design2") != self._candidate_ref:
+                raise ValueError("Verification came from different native designs")
             # Retrieve the report through the new API and require this exact proof.
             if result.get("report_id"):
                 reports = self._client.call("get_session_reports", {
@@ -313,6 +321,8 @@ class LiveDesignSession:
                 if (reports.get("report_id") != result["report_id"]
                         or reports.get("session_id") != self._session_id
                         or reports.get("pid") != os.getpid()
+                        or reports.get("design1") != self._golden_ref
+                        or reports.get("design2") != self._candidate_ref
                         or reports.get("verification_result") != result.get("verification_result")):
                     raise ValueError("Session report does not match the completed verification")
                 SEC.summarize(reports)

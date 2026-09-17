@@ -13,11 +13,15 @@ from tools import live_session as live
 from tools.edit_validation import editing_function, validate_script
 from test_gcd_reference_regression import proof_result
 
+GOLDEN_REF = dict(session_id="fixture-session", db_id=2, library_id=1, design_id=0)
+CANDIDATE_REF = dict(session_id="fixture-session", db_id=1, library_id=1, design_id=0)
+
 
 def attached_result(status="equivalent", proven=18):
     result = proof_result(status, proven=proven)
     result.update(report_format="structured-v1", report_id="proof-identity",
-                  session_id="fixture-session", pid=os.getpid())
+                  session_id="fixture-session", pid=os.getpid(),
+                  design1=dict(GOLDEN_REF), design2=dict(CANDIDATE_REF))
     result["reports"] = {"verification-result.json": json.dumps(result["verification_result"])}
     return result
 
@@ -70,6 +74,7 @@ class SessionTests(unittest.TestCase):
         session._golden = SimpleNamespace(signature="golden")
         session._candidate = SimpleNamespace(signature="candidate")
         session._golden_hash, session._candidate_hash = "golden", "candidate"
+        session._golden_ref, session._candidate_ref = dict(GOLDEN_REF), dict(CANDIDATE_REF)
         session._netlist = SimpleNamespace(get_top=lambda: session._candidate)
         session._bridge = SimpleNamespace(lock=threading.RLock(), close=Mock())
         session._session_id = "fixture-session"
@@ -95,8 +100,8 @@ class SessionTests(unittest.TestCase):
                          ["verify_session", "get_session_reports"] * 2)
         for call in calls[::2]:
             self.assertEqual(call.args[1]["verification"], "sec")
-            self.assertEqual(call.args[1]["design1"], "golden")
-            self.assertEqual(call.args[1]["design2"], "candidate")
+            self.assertEqual(call.args[1]["design1"], GOLDEN_REF)
+            self.assertEqual(call.args[1]["design2"], CANDIDATE_REF)
             self.assertTrue(call.args[1]["report_skipped_outputs"])
 
     def test_counterexample_and_tool_error_clear_previous_proof(self):
@@ -187,9 +192,18 @@ class SessionTests(unittest.TestCase):
     def test_stale_report_and_wrong_session_rejected(self):
         good = attached_result()
         for bad in (dict(good, report_id="stale"), dict(good, session_id="other"),
-                    dict(good, pid=-1), dict(good, reports={})):
+                    dict(good, pid=-1), dict(good, reports={}),
+                    dict(good, design1=CANDIDATE_REF), dict(good, design2=GOLDEN_REF)):
             self.session._client.call.side_effect = [good, bad]
             with self.assertRaises(ValueError):
+                self.session.verify()
+            self.assertIsNone(self.session.proof)
+
+    def test_wrong_native_database_or_missing_identity_rejects_proof(self):
+        for field, reference in (("design1", CANDIDATE_REF), ("design2", GOLDEN_REF),
+                                 ("design1", None)):
+            self.session._client.call.return_value = dict(attached_result(), **{field: reference})
+            with self.assertRaisesRegex(ValueError, "different native designs"):
                 self.session.verify()
             self.assertIsNone(self.session.proof)
 

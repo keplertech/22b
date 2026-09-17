@@ -13,6 +13,13 @@ candidate against unchanged golden in the same interpreter, without design
 exports. If a candidate is later exported, separately verify the exported
 representation reloaded from disk; in-memory proof cannot certify an exporter.
 
+Live verification selects designs using native references containing
+`session_id`, `db_id`, `library_id`, and `design_id`, not registered aliases.
+Keep the returned references; never guess IDs or select by top-module name.
+Require the proof response and retrieved report to identify the requested pair.
+Follow the [session setup](../live-session.md) to install the matching pinned
+wrapper in both the owner and MCP process. File tools are unchanged.
+
 ## File-Based Verification
 
 For a reviewed mapped-Verilog candidate, the [client helper](verify.py) creates
