@@ -31,9 +31,12 @@ or comparison afterward, not hints for independent discovery.
    [Naja-Scope](tools/naja-scope/SKILL.md). Separate observations from hypotheses.
 4. Use [NajaEDA](tools/najaeda/SKILL.md) for structural edits. Review and syntax
    check generated code before running it with only the needed file access.
-5. Run [Kepler Formal SEC through MCP](tools/kepler-formal/SKILL.md) on the exported
-   candidate, not only an in-memory representation. Explicitly select SEC and
-   preserve the structured proof outcome, logs and output coverage.
+5. Run [Kepler Formal SEC through MCP](tools/kepler-formal/SKILL.md). For iterative
+   in-memory work, use the [persistent session](tools/live-session.md): keep one
+   unchanged golden and one cumulatively edited candidate, with automatic SEC
+   after every edit and no intermediate design dumps. If a design is later
+   exported for another tool, verify that exported representation separately.
+   Preserve the structured outcome, logs and actual output coverage.
 6. For backend tasks, rerun [OpenROAD](tools/openroad/SKILL.md) with the same
    physical setup. Compare timing, area, estimated power, hold and routing checks.
 

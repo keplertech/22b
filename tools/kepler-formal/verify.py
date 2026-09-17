@@ -22,7 +22,7 @@ def save(path, value):
     path.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n")
 
 
-def package_identity():
+def package_identity(development_checkout=None):
     pins = json.loads((ROOT / "toolchain.json").read_text())
     versions = {name: importlib.metadata.version(name) for name in pins["python_packages"]}
     if versions != pins["python_packages"]:
@@ -30,6 +30,21 @@ def package_identity():
     pin = pins["kepler_formal_mcp"]
     dist = importlib.metadata.distribution("kepler-formal-mcp")
     origin = json.loads(dist.read_text("direct_url.json") or "{}")
+    if development_checkout is not None:
+        checkout = Path(development_checkout).resolve(strict=True)
+        if origin.get("url") != checkout.as_uri() or "dir_info" not in origin:
+            raise ValueError("Development MCP must be explicitly installed from the selected local checkout")
+        hashes = {}
+        for source in sorted((checkout / "kepler_formal_mcp").rglob("*.py")):
+            relative = source.relative_to(checkout)
+            installed = Path(dist.locate_file(str(relative)))
+            if installed.read_bytes() != source.read_bytes():
+                raise ValueError("Development MCP changed since installation; reinstall the wrapper")
+            hashes[str(relative)] = hashlib.sha256(source.read_bytes()).hexdigest()
+        if not hashes:
+            raise ValueError("Missing development MCP source")
+        return {"python_packages": versions, "kepler_formal_mcp": origin,
+                "development_override": True, "source_hashes": hashes, "python": sys.version}
     if (dist.version != pin["version"] or origin.get("url") != pin["repository"]
             or origin.get("vcs_info", {}).get("commit_id") != pin["revision"]):
         raise ValueError("Install the pinned kepler-formal-mcp Git package; version 0.1.0 alone is not sufficient")
@@ -79,15 +94,25 @@ def summarize(result):
         if not isinstance(proof.get(key), list) or not all(isinstance(x, str) for x in proof[key]):
             raise ValueError(f"Missing or invalid {key}")
     reports = result.get("reports")
-    if (not isinstance(reports, dict) or set(reports) != set(REPORTS)
-            or not all(isinstance(value, str) for value in reports.values())):
+    structured = result.get("report_format") == "structured-v1"
+    if structured:
+        if (not isinstance(reports, dict) or not isinstance(reports.get("verification-result.json"), str)
+                or json.loads(reports["verification-result.json"]) != proof):
+            raise ValueError("Missing or contradictory structured session report")
+        text_reports = {k: v for k, v in reports.items() if k != "verification-result.json"}
+        if not set(text_reports) <= set(REPORTS) or not all(isinstance(v, str) for v in text_reports.values()):
+            raise ValueError("Unexpected session report format")
+    elif (not isinstance(reports, dict) or set(reports) != set(REPORTS)
+          or not all(isinstance(value, str) for value in reports.values())):
         raise ValueError("Missing or invalid skipped-output reports")
+    else:
+        text_reports = reports
     full = status == "equivalent"
     if proof.get("equivalent") is not full or proof.get("conclusive") is not full:
         raise ValueError("Contradictory equivalence flags")
     if full and (proof["exit_code"] != 0 or covered != total or proven != total
                  or proof["unproven_outputs"] or proof["skipped_observed_outputs"]
-                 or any(text.strip() for text in reports.values())):
+                 or any(text.strip() for text in text_reports.values())):
         raise ValueError("Equivalence claim lacks full, unskipped SEC proof")
     return {"status": "proved" if full else "warning", "verdict": status,
             "covered_outputs": covered, "existing_outputs": total,

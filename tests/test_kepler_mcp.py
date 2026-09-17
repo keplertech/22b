@@ -139,6 +139,46 @@ class KeplerMcpTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Git package"):
                 SEC.package_identity()
 
+    def test_session_structured_report_retains_real_skipped_details(self):
+        value = proof_result("partially_proved", covered=17, proven=8)
+        value["verification_result"]["skipped_observed_outputs"] = ["y: no driver"]
+        value["verification_result"]["unproven_outputs"] = ["z: inconclusive"]
+        value["report_format"] = "structured-v1"
+        value["reports"] = {"verification-result.json": json.dumps(value["verification_result"])}
+        result = SEC.summarize(value)
+        self.assertEqual(result["skipped_observed_outputs"], ["y: no driver"])
+        self.assertEqual(result["unproven_outputs"], ["z: inconclusive"])
+        self.assertEqual(result["status"], "warning")
+        for reports in ({}, {"verification-result.json": "{}"},
+                        dict(value["reports"], unexpected="")):
+            with self.assertRaises(ValueError):
+                SEC.summarize(dict(value, reports=reports))
+
+    def test_development_override_matches_exact_installed_source(self):
+        pins = json.loads((SEC.ROOT / "toolchain.json").read_text())
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            checkout, installed = root / "checkout", root / "installed"
+            for directory in (checkout, installed):
+                (directory / "kepler_formal_mcp").mkdir(parents=True)
+                (directory / "kepler_formal_mcp/__init__.py").write_text("# reviewed wrapper\n")
+            origin = {"url": checkout.as_uri(), "dir_info": {}}
+            dist = SimpleNamespace(version="0.1.0", read_text=lambda name: json.dumps(origin),
+                                   locate_file=lambda path: installed / path)
+            with patch.object(SEC.importlib.metadata, "version", side_effect=pins["python_packages"].get), \
+                 patch.object(SEC.importlib.metadata, "distribution", return_value=dist):
+                result = SEC.package_identity(checkout)
+                self.assertTrue(result["development_override"])
+                self.assertIn("kepler_formal_mcp/__init__.py", result["source_hashes"])
+                with self.assertRaises(ValueError):
+                    SEC.package_identity()
+                (checkout / "kepler_formal_mcp/__init__.py").write_text("# changed after install\n")
+                with self.assertRaisesRegex(ValueError, "reinstall"):
+                    SEC.package_identity(checkout)
+                origin["url"] = installed.as_uri()
+                with self.assertRaisesRegex(ValueError, "selected local checkout"):
+                    SEC.package_identity(checkout)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,16 +1,19 @@
 ---
 name: kepler-formal
-description: Verify exported mapped designs with the Python-backed Kepler Formal MCP using SEC, preserving structured outcomes, proof coverage, skipped outputs and diagnostics without conflating execution success with equivalence.
+description: Verify mapped designs in memory or from files with the Python-backed Kepler Formal MCP using SEC, preserving outcomes, coverage, skipped outputs and diagnostics without conflating execution success with equivalence.
 ---
 
-# Verify An Exported Candidate
+# Verify A Candidate
 
 Use the [package guide](install.md) if needed. Always request SEC, including
 for combinational edits: the upstream MCP defaults to **LEC**. Keep originals,
-libraries and constraints unchanged. Verify the exported candidate as reloaded
-from disk, not only the editor's in-memory design.
+libraries and constraints unchanged. For iterative Python/Jupyter work use the
+[persistent session](../live-session.md): automatic SEC compares the cumulative
+candidate against unchanged golden in the same interpreter, without design
+exports. If a candidate is later exported, separately verify the exported
+representation reloaded from disk; in-memory proof cannot certify an exporter.
 
-## Run Through MCP
+## File-Based Verification
 
 For a reviewed mapped-Verilog candidate, the [client helper](verify.py) creates
 a fresh proof directory, snapshots read-only inputs, records their hashes and
@@ -43,7 +46,7 @@ Agents may also call MCP directly. First call `get_kepler_formal_info`, then
 ```
 
 Use these same assumptions for reference comparisons; record any explicit
-change. The MCP starts a fresh Python worker, loads both designs with NajaEDA,
+change. The file-based MCP starts a fresh Python worker, loads both designs with NajaEDA,
 and calls `kepler_formal.verify_designs`. There is no `verify_sec` tool in this
 revision and no Kepler CLI invocation. Session/attached-design tools are not a
 replacement for checking the exported candidate.

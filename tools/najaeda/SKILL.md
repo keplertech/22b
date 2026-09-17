@@ -1,11 +1,18 @@
 ---
 name: najaeda
-description: Inspect and edit structural hardware connectivity with NajaEDA, preserving boundary nets and interfaces, then export a separate candidate for formal verification.
+description: Inspect and edit structural hardware connectivity with NajaEDA, preserving boundary nets and interfaces, using a persistent candidate session or a separately exported candidate for formal verification.
 ---
 
 # Structural Editing
 
-Use the [package guide](install.md). Load Liberty before mapped Verilog:
+Use the [package guide](install.md). For incremental edits in one Python/Jupyter
+kernel, read [persistent sessions](../live-session.md). Supply only `edit(top)`
+and pure helpers to `session.apply_edit(script)`; do not import, reset, load or
+dump designs inside the script. The session owns loading and automatically runs
+SEC against golden. Each edit starts from the previous candidate, including a
+partially executed edit that needs repair after an exception.
+
+For a separate, file-based process, load Liberty before mapped Verilog:
 
 ```python
 from najaeda import netlist
@@ -26,7 +33,7 @@ access, and verify that named instances, models, pins and connections exist.
 Run in a fresh candidate workspace with baseline files read-only where the
 execution environment supports that. A Python syntax check is not a sandbox.
 
-Dump to a new output path with `top.dump_verilog(output_path)`. Do not overwrite
+In the file-based flow, dump to a new output path with `top.dump_verilog(output_path)`. Do not overwrite
 the reference or export intermediate multi-driver states. Reload the result and
 run [Kepler SEC](../kepler-formal/SKILL.md); cell-count changes are diagnostics,
 not a correctness proof. Detect internal-net/port naming collisions when signals

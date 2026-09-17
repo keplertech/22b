@@ -17,6 +17,11 @@ python -m pip check
 python -m pip freeze > .venv/resolved-packages.txt
 ```
 
+For an existing MCP installation at a different Git revision, add
+`--force-reinstall` to the wrapper-only `pip install --no-deps` command above.
+Pip may otherwise retain the old revision because both use version `0.1.0`.
+Reuse an installation whose Git revision already matches the requirement.
+
 The native dependencies are published wheels: `kepler-formal==0.5.0` requires
 `najaeda==0.7.24`. Python 3.13 is used by the regression. If a compatible native
 wheel is unavailable, stop; never compile Kepler or Naja as a fallback.

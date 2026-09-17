@@ -58,3 +58,7 @@ dependency; retain the resolved package list with each experiment.
 Package installation accesses public registries; design files do not need to
 leave the machine. Configuring an external model is separate and remains the
 caller's choice. No Ollama service or model is installed by this repository.
+
+For incremental editing and verification without reloading designs, see
+[persistent Python/Jupyter sessions](live-session.md). Its optional kernel
+dependencies are separate from the existing file-based workflow.

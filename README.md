@@ -38,7 +38,12 @@ if the inline player is unavailable.
 
 An agent can read these files directly. [AGENTS.md](AGENTS.md) points agents to
 the same entry point; human users can follow the same procedures. Skills are
-instructions, not a security sandbox or an API that enforces verification.
+instructions, not a security sandbox. For iterative work, the optional
+[persistent Python/Jupyter session](tools/live-session.md) validates each edit
+and automatically runs SEC on the cumulative candidate against unchanged
+golden, without design dumps or reloads between edits. The model stays in the
+same kernel throughout. The pinned MCP includes its attached-session report API;
+the existing file-based flow is unchanged.
 
 ## Verification And Evidence
 

@@ -28,6 +28,8 @@ edited design has 275 leaf cells before physical optimization.
 - [constraints.sdc](../constraints.sdc): original clock and I/O constraints.
 - [edit.py](edit.py): reviewed standalone NajaEDA rewrite from the recorded demo,
   with additional input/name/output guards. Not a fresh model generation.
+- [live_session.py](live_session.py): optional in-memory replay with two
+  cumulative edits, no design exports, and full SEC after each edit.
 - [request.md](request.md): saved, solution-specific request for this reference.
 - [fetch_fixture.py](../platform/fetch_fixture.py): downloads pinned flow/technology data only.
 - [run.tcl](../platform/run.tcl): separate baseline or candidate OpenROAD run and final reports.
@@ -149,6 +151,23 @@ Compare `DRT::worst_slack_max`, `DRT::worst_slack_min`, `DRT::tns_max`,
 DRCs in both logs; check hold and electrical violations as well as setup.
 Record units from each tool's reports. View the candidate's new critical path,
 which need not be the original path. Do not adjust constraints between stages.
+
+## Optional In-Memory Replay
+
+After [session package setup](../../../../tools/live-session.md), run:
+
+```sh
+python examples/backend/gcd/reference/live_session.py \
+  --liberty "$LIBERTY" --work-dir runs/gcd-live-reference
+```
+
+This reuses the reviewed prefix rewrite, then inserts a buffer into that same
+candidate to exercise a second cumulative edit. Both edits require 18/18 outputs
+proved by SEC, with no skips. Golden stays unchanged. The additional buffer is
+a session regression, not a claimed timing improvement. This replay measures
+no PPA and exports no designs. The separate
+[Jupyter regression](../../../../scripts/live_session_regression.py) exercises
+multiple notebook cells, counterexample rejection and repairing a bad edit.
 
 ## Historical Result, Not A New Nix Validation
 
