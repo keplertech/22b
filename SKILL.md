@@ -29,12 +29,16 @@ or comparison afterward, not hints for independent discovery.
    stale output files as evidence for a new run.
 3. Inspect using reports and, when structural connectivity matters,
    [Naja-Scope](tools/naja-scope/SKILL.md). Separate observations from hypotheses.
+   In a live editing session, refresh Scope only when the next decision needs
+   current connectivity; use its revision-labelled inspection checkpoint, not
+   a stale copy left from an earlier edit.
 4. Use [NajaEDA](tools/najaeda/SKILL.md) for structural edits. Review and syntax
    check generated code before running it with only the needed file access.
 5. Run [Kepler Formal SEC through MCP](tools/kepler-formal/SKILL.md). For iterative
    in-memory work, use the [persistent session](tools/live-session.md): keep one
    unchanged golden and one cumulatively edited candidate, with automatic SEC
-   after every edit and no intermediate design dumps. If a design is later
+   after every edit and no design dumps for verification. Optional inspection
+   copies never replace either live design. If a design is later
    exported for another tool, verify that exported representation separately.
    Preserve the structured outcome, logs and actual output coverage.
 6. For backend tasks, rerun [OpenROAD](tools/openroad/SKILL.md) with the same

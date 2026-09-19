@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/gcd-reference-verify.yml'
       - 'scripts/gcd_reference_regression.py'
+      - 'scripts/live_inspection_regression.py'
+      - 'scripts/live_session_regression.py'
       - 'examples/backend/gcd/**'
       - 'toolchain.json'
       - 'tools/**'
@@ -14,6 +16,8 @@ on:
     paths:
       - '.github/workflows/gcd-reference-verify.yml'
       - 'scripts/gcd_reference_regression.py'
+      - 'scripts/live_inspection_regression.py'
+      - 'scripts/live_session_regression.py'
       - 'examples/backend/gcd/**'
       - 'toolchain.json'
       - 'tools/**'
@@ -71,6 +75,8 @@ jobs:
           python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage prepare
       - name: Baseline OpenROAD physical design flow
         run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage baseline
+      - name: Live candidate inspection checkpoints through Naja-Scope MCP
+        run: python scripts/live_inspection_regression.py --work-dir runs/live-inspection
       - name: Naja-Scope MCP connectivity inspection
         run: python scripts/gcd_reference_regression.py --work-dir "$RUN" --stage inspect
       - name: Apply the reviewed reference edit with NajaEDA
@@ -88,6 +94,7 @@ jobs:
           name: gcd-packaged-reference
           path: |
             runs/gcd-reference/
+            runs/live-inspection/
             .cache/gcd-tools/*.json
             .cache/gcd-tools/*.txt
             .cache/gcd-tools/*.log
