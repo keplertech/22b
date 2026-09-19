@@ -1,5 +1,6 @@
 """Offline session-policy tests; real kernel/SEC checks are a separate runner."""
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -64,7 +65,7 @@ class SessionTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         session = live.LiveDesignSession.__new__(live.LiveDesignSession)
-        session.directory = Path(temp.name)
+        session.directory = Path(temp.name).resolve()
         session.timeout, session.revision, session._attempt = 5, 0, 0
         session._pending = session._closed = False
         session.state, session.proof = "unverified", None
@@ -73,6 +74,9 @@ class SessionTests(unittest.TestCase):
         session._naja = SimpleNamespace(NLUniverse=SimpleNamespace(get=lambda: session._universe))
         session._golden = SimpleNamespace(signature="golden")
         session._candidate = SimpleNamespace(signature="candidate")
+        session._candidate.getName = lambda: "fixture"
+        session._candidate.dumpVerilog = Mock(side_effect=lambda directory, name:
+            (Path(directory) / name).write_text("module fixture(); endmodule\n"))
         session._golden_hash, session._candidate_hash = "golden", "candidate"
         session._golden_ref, session._candidate_ref = dict(GOLDEN_REF), dict(CANDIDATE_REF)
         session._netlist = SimpleNamespace(get_top=lambda: session._candidate)
@@ -81,6 +85,11 @@ class SessionTests(unittest.TestCase):
         session._client = Mock()
         session._client.busy.return_value = False
         session._client.call.return_value = attached_result()
+        library = session.directory / "source.lib"
+        library.write_text("library(cells) {}\n")
+        session._liberty_paths = [library]
+        session._source_hashes = {str(library): hashlib.sha256(library.read_bytes()).hexdigest()}
+        session._inspections = {}
         self.session = session
         fingerprint = patch.object(live, "_fingerprint", side_effect=lambda design: design.signature)
         fingerprint.start()
@@ -235,6 +244,130 @@ class SessionTests(unittest.TestCase):
                 self.session.status()
         self.assertEqual(self.session.state, "invalid")
         self.assertIsNone(self.session.proof)
+
+    def test_inspection_is_explicit_read_only_and_not_an_export_proof(self):
+        self.session.verify()
+        before = self.session.status()
+        calls = self.session._client.call.call_count
+        artifact = self.session.export_inspection()
+        self.assertEqual(self.session.status(), before)
+        self.assertEqual(self.session._client.call.call_count, calls)
+        self.assertEqual(artifact["revision"], 0)
+        self.assertEqual(artifact["candidate_reference"], CANDIDATE_REF)
+        self.assertEqual(artifact["export_equivalence"], "not_checked")
+        self.assertTrue(self.session.inspection_status(artifact["manifest"])["current"])
+        for name, digest in artifact["file_sha256"].items():
+            self.assertEqual(hashlib.sha256(Path(name).read_bytes()).hexdigest(), digest)
+            self.assertEqual(Path(name).stat().st_mode & 0o222, 0)
+        self.assertEqual(Path(artifact["liberty_files"][0]).read_bytes(),
+                         self.session._liberty_paths[0].read_bytes())
+        self.session._universe.setTopDesign.assert_not_called()
+        self.session._universe.destroy.assert_not_called()
+
+    def test_inspections_are_unique_and_status_does_not_export(self):
+        first = self.session.export_inspection()
+        second = self.session.export_inspection()
+        self.assertNotEqual(first["manifest"], second["manifest"])
+        for artifact in (first, second):
+            self.assertTrue(self.session.inspection_status(artifact["manifest"])["current"])
+        self.assertEqual(self.session._candidate.dumpVerilog.call_count, 2)
+
+    def test_edit_marks_old_inspection_stale_without_automatic_export(self):
+        artifact = self.session.export_inspection()
+        self.session.apply_edit("def edit(top):\n pass")
+        result = self.session.inspection_status(artifact["manifest"])
+        self.assertFalse(result["current"])
+        self.assertEqual(result["reasons"], ["candidate_revision_changed"])
+        self.assertEqual(result["current_revision"], 1)
+        self.assertEqual(self.session._candidate.dumpVerilog.call_count, 1)
+        fresh = self.session.export_inspection()
+        self.assertTrue(self.session.inspection_status(fresh["manifest"])["current"])
+
+    def test_inspection_returned_metadata_cannot_change_retained_record(self):
+        artifact = self.session.export_inspection()
+        manifest = artifact["manifest"]
+        artifact["revision"] = 999
+        artifact["candidate_reference"]["db_id"] = 44
+        artifact["file_sha256"].clear()
+        self.assertTrue(self.session.inspection_status(manifest)["current"])
+        self.assertEqual(self.session.inspection_status(manifest)["revision"], 0)
+
+    def test_modified_or_missing_inspection_files_never_report_current(self):
+        for field in ("manifest", "verilog_file", "liberty_files"):
+            artifact = self.session.export_inspection()
+            path = Path(artifact[field][0] if field == "liberty_files" else artifact[field])
+            path.chmod(0o600)
+            path.write_text("{}")
+            self.assertFalse(self.session.inspection_status(artifact["manifest"])["current"])
+            path.unlink()
+            self.assertFalse(self.session.inspection_status(artifact["manifest"])["current"])
+
+    def test_other_session_manifests_rejected(self):
+        with self.assertRaisesRegex(ValueError, "not exported"):
+            self.session.inspection_status(self.session.directory / "unknown.json")
+
+    def test_changed_source_liberty_refuses_new_export_but_old_copy_stays_valid(self):
+        artifact = self.session.export_inspection()
+        self.session._liberty_paths[0].write_text("changed")
+        with self.assertRaisesRegex(RuntimeError, "Liberty source changed"):
+            self.session.export_inspection()
+        self.assertEqual(len(self.session._inspections), 1)
+        self.assertTrue(self.session.inspection_status(artifact["manifest"])["current"])
+
+    def test_export_error_does_not_invalidate_live_proof_or_publish_manifest(self):
+        self.session.verify()
+        before = self.session.status()
+        self.session._candidate.dumpVerilog.side_effect = OSError("disk full")
+        with self.assertRaisesRegex(OSError, "disk full"):
+            self.session.export_inspection()
+        self.assertEqual(self.session.status(), before)
+        self.assertFalse(self.session._inspections)
+        self.assertTrue(list(self.session.directory.glob("inspections/*/error.json")))
+
+    def test_empty_export_is_rejected(self):
+        self.session._candidate.dumpVerilog.side_effect = None
+        with self.assertRaisesRegex(RuntimeError, "no Verilog"):
+            self.session.export_inspection()
+        self.assertFalse(self.session._inspections)
+
+    def test_export_detects_unexpected_live_mutation(self):
+        def corrupt(directory, name):
+            (Path(directory) / name).write_text("module fixture(); endmodule")
+            self.session._candidate.signature = "corrupted"
+        self.session._candidate.dumpVerilog.side_effect = corrupt
+        with self.assertRaises(RuntimeError):
+            self.session.export_inspection()
+        self.assertEqual(self.session.state, "invalid")
+        self.assertFalse(self.session._inspections)
+
+    def test_busy_and_pending_verification_block_inspection(self):
+        self.session._operation.acquire()
+        try:
+            with self.assertRaisesRegex(RuntimeError, "Another session operation"):
+                self.session.export_inspection()
+        finally:
+            self.session._operation.release()
+        self.session._client.busy.return_value = True
+        with self.assertRaisesRegex(RuntimeError, "still running"):
+            self.session.export_inspection()
+        self.session._client.busy.return_value = False
+        self.session._pending = True
+        with self.assertRaisesRegex(RuntimeError, "unresolved"):
+            self.session.export_inspection()
+        self.session._candidate.dumpVerilog.assert_not_called()
+
+    def test_closed_session_cannot_export(self):
+        self.session.close()
+        with self.assertRaisesRegex(RuntimeError, "closed"):
+            self.session.export_inspection()
+
+    def test_unproven_and_rejected_candidates_are_inspectable_without_promotion(self):
+        for state in ("unproven", "rejected", "edit_error"):
+            self.session.state = state
+            artifact = self.session.export_inspection()
+            self.assertEqual(artifact["live_state"], state)
+            self.assertEqual(self.session.state, state)
+            self.assertIsNone(self.session.proof)
 
 
 if __name__ == "__main__":

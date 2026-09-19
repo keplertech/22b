@@ -14,6 +14,9 @@ LEF/technology data and an SDC; RTL synthesis is not implicit in this flow.
    slew, capacitance and fanout. Check that constraints and units are meaningful.
 3. Use [Naja-Scope](../../tools/naja-scope/SKILL.md) to establish the target cone
    and all boundary consumers. A timing path is not the complete connectivity.
+   Reuse a current inspection copy across queries. After an edit, refresh only
+   when a new decision needs candidate connectivity, including a changed critical
+   path after rerouting. Keep baseline evidence labelled as baseline.
 4. Propose a specific Boolean or architectural transformation, with expected
    benefit and area/power/hold risks. Do not describe cell sizing as logic
    restructuring. If the rewrite is already specified, skip new model analysis.

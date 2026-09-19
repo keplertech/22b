@@ -5,6 +5,9 @@ One dedicated kernel holds two designs: immutable golden and mutable candidate.
 The candidate is never replaced by a reload between iterations. Both designs
 have their own database and loaded Liberty definitions; library sharing and
 Naja-Scope attachment are deferred. No design dump is needed for verification.
+For on-demand inspection with the existing file-based Scope server, use
+[inspection checkpoints](naja-scope/checkpoints.md). They export a labelled copy
+without replacing either live design.
 
 ## Setup
 
@@ -96,6 +99,13 @@ session. Close it and obtain fresh references in a new session instead.
 Inspect `session.status()` for current revision, state and proof. Closing with
 `session.close()` detaches the MCP and destroys only this session's universe.
 Opening refuses an already-loaded universe rather than resetting user data.
+
+`session.export_inspection()` explicitly exports the current candidate for a
+separate Scope server and returns its manifest and loading paths.
+`session.inspection_status(manifest_path)` checks that copy's revision and
+file integrity without exporting again. Neither method runs SEC, certifies the
+exported representation, or changes the live proof. Ordinary edit/verify calls
+still perform no exports. Inspection of a rejected candidate is diagnostic only.
 
 ## Outcomes And Recovery
 

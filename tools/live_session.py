@@ -2,6 +2,7 @@
 
 import asyncio
 from concurrent.futures import Future
+from contextlib import contextmanager
 import hashlib
 import importlib.util
 import json
@@ -9,6 +10,7 @@ import os
 from pathlib import Path
 import queue
 import sys
+import tempfile
 import threading
 
 from tools.edit_validation import editing_function
@@ -126,7 +128,8 @@ class LiveDesignSession:
 
     Use only in a dedicated trusted Python/Jupyter kernel. The editing contract
     is deliberately restricted; neither Python nor the Naja native API is an OS
-    sandbox. No design is exported, reloaded or reset between iterations.
+    sandbox. Verification needs no exports or reloads. Inspection copies are
+    exported only on an explicit call, never reloaded into this kernel.
     """
 
     def __init__(self, reference, liberty_files, work_dir, *, timeout=600,
@@ -151,12 +154,15 @@ class LiveDesignSession:
         self._bridge = self._client = self._universe = None
         self._databases = []
         self._attempt = 0
+        self._inspections = {}
         try:
             identity = SEC.package_identity(development_mcp_checkout)
             SEC.save(self.directory / "packages.json", identity)
             paths = [Path(reference).resolve(strict=True), *[Path(p).resolve(strict=True) for p in liberty_files]]
-            SEC.save(self.directory / "source-hashes.json", {
-                str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths})
+            self._liberty_paths = paths[1:]
+            self._source_hashes = {
+                str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
+            SEC.save(self.directory / "source-hashes.json", self._source_hashes)
             self._universe = naja.NLUniverse.create()
             designs = []
             for _ in range(2):
@@ -245,6 +251,102 @@ class LiveDesignSession:
             if not self._closed:
                 self._check()
             return self._record()
+
+    @contextmanager
+    def _inspection_access(self):
+        if not self._operation.acquire(blocking=False):
+            raise RuntimeError("Another session operation is running")
+        try:
+            self._check()
+            if self._pending:
+                raise RuntimeError("A timed-out proof is unresolved; verify again when idle before inspection")
+            if not self._bridge.lock.acquire(blocking=False):
+                raise RuntimeError("Native work is still running; inspection is blocked")
+            try:
+                self._check()
+                try:
+                    yield
+                finally:
+                    self._check()
+            finally:
+                self._bridge.lock.release()
+        finally:
+            self._operation.release()
+
+    def export_inspection(self):
+        """Export a fresh candidate copy for a separate, file-based Scope server.
+
+        The manifest describes an inspection artifact, not a proof of its
+        exported representation. This method does not load or reset any design.
+        """
+        with self._inspection_access():
+            root = self.directory / "inspections"
+            root.mkdir(exist_ok=True)
+            directory = Path(tempfile.mkdtemp(prefix=f"revision-{self.revision:04}-", dir=root))
+            manifest = directory / "manifest.json"
+            libraries = []
+            hashes = {}
+            try:
+                for index, source in enumerate(self._liberty_paths):
+                    data = source.read_bytes()
+                    digest = hashlib.sha256(data).hexdigest()
+                    if digest != self._source_hashes[str(source)]:
+                        raise RuntimeError("Liberty source changed since the live session was loaded")
+                    target = directory / f"cells-{index:03}.lib"
+                    target.write_bytes(data)
+                    libraries.append(str(target))
+                    hashes[str(target)] = digest
+                verilog = directory / "candidate.v"
+                self._candidate.dumpVerilog(str(directory), verilog.name)
+                if not verilog.is_file() or not verilog.stat().st_size:
+                    raise RuntimeError("Inspection export produced no Verilog")
+                hashes[str(verilog)] = hashlib.sha256(verilog.read_bytes()).hexdigest()
+                self._check()
+                record = {
+                    "schema": "22b-inspection-v1", "purpose": "inspection-only",
+                    "manifest": str(manifest), "revision": self.revision,
+                    "candidate_reference": dict(self._candidate_ref),
+                    "candidate_sha256": self._candidate_hash,
+                    "top": self._candidate.getName(), "live_state": self.state,
+                    "export_equivalence": "not_checked",
+                    "verilog_file": str(verilog), "liberty_files": libraries,
+                    "file_sha256": hashes,
+                }
+                SEC.save(manifest, record)
+                for path in [manifest, *map(Path, hashes)]:
+                    path.chmod(0o400)
+                self._inspections[str(manifest)] = record
+                return json.loads(json.dumps(record))
+            except BaseException as error:
+                # Keep failed exports for diagnosis, but never register them as usable.
+                SEC.save(directory / "error.json", {"error": str(error)})
+                raise
+
+    def inspection_status(self, manifest):
+        """Check an exported copy's provenance and freshness, not Scope's server state."""
+        with self._inspection_access():
+            key = str(Path(manifest).resolve())
+            if key not in self._inspections:
+                raise ValueError("Inspection manifest was not exported by this live session")
+            record = self._inspections[key]
+            reasons = []
+            if (record["revision"] != self.revision
+                    or record["candidate_sha256"] != self._candidate_hash):
+                reasons.append("candidate_revision_changed")
+            try:
+                if json.loads(Path(key).read_text()) != record:
+                    reasons.append("manifest_modified")
+            except (OSError, ValueError):
+                reasons.append("manifest_missing_or_unreadable")
+            for name, digest in record["file_sha256"].items():
+                try:
+                    if hashlib.sha256(Path(name).read_bytes()).hexdigest() != digest:
+                        reasons.append("inspection_file_modified: " + name)
+                except OSError:
+                    reasons.append("inspection_file_missing_or_unreadable: " + name)
+            return {"manifest": key, "revision": record["revision"],
+                    "current_revision": self.revision, "current": not reasons,
+                    "reasons": reasons, "export_equivalence": "not_checked"}
 
     def apply_edit(self, script):
         function = editing_function(script)
