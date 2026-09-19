@@ -12,6 +12,7 @@ SKILLS = [ROOT / "SKILL.md", *sorted((ROOT / "flow").glob("*/SKILL.md")),
 DOCS = [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "SKILL.md",
         *sorted((ROOT / "flow").rglob("*.md")),
         *sorted((ROOT / "tools").rglob("*.md")),
+        *sorted((ROOT / "setup").rglob("*.md")),
         *sorted((ROOT / "examples").rglob("*.md"))]
 
 

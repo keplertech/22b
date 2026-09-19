@@ -6,6 +6,9 @@ delete caches or upgrade working tools as an incidental part of an experiment.
 
 Package references are pinned in [toolchain.json](../toolchain.json).
 
+For direct Kepler tools in Codex or Claude Code, use [agent setup](../setup/README.md).
+Package installation and registration with the agent host are separate steps.
+
 | Tool | Installation | Purpose |
 | --- | --- | --- |
 | Kepler Formal | [Python-backed MCP + native wheels](kepler-formal/install.md) | SEC verification |

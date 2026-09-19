@@ -8,6 +8,8 @@ on:
       - 'scripts/gcd_reference_regression.py'
       - 'scripts/live_inspection_regression.py'
       - 'scripts/live_session_regression.py'
+      - 'scripts/agent_mcp_regression.py'
+      - 'setup/**'
       - 'examples/backend/gcd/**'
       - 'toolchain.json'
       - 'tools/**'
@@ -18,6 +20,8 @@ on:
       - 'scripts/gcd_reference_regression.py'
       - 'scripts/live_inspection_regression.py'
       - 'scripts/live_session_regression.py'
+      - 'scripts/agent_mcp_regression.py'
+      - 'setup/**'
       - 'examples/backend/gcd/**'
       - 'toolchain.json'
       - 'tools/**'
@@ -63,12 +67,18 @@ jobs:
           echo "$PWD/.cache/gcd-tools/openroad/bin" >> "$GITHUB_PATH"
       - name: Install native Python wheels and pinned pure-Python Kepler MCP package
         run: |
-          python -m venv .cache/gcd-python
-          .cache/gcd-python/bin/python -m pip install --only-binary=:all: -r tools/python-requirements.txt
-          .cache/gcd-python/bin/python -m pip install --no-deps -r tools/kepler-formal/mcp-requirements.txt
-          .cache/gcd-python/bin/python -m pip check
+          mkdir -p .cache/agent-config-codex .cache/agent-config-claude
+          python setup/mcp.py configure --client codex --project .cache/agent-config-codex \
+            --venv .cache/gcd-python --apply | tee .cache/gcd-tools/setup-codex.log
+          python setup/mcp.py configure --client claude-code --project .cache/agent-config-claude \
+            --venv .cache/gcd-python --apply | tee .cache/gcd-tools/setup-claude.log
           .cache/gcd-python/bin/python -m pip freeze > .cache/gcd-tools/python-packages.txt
           echo "$PWD/.cache/gcd-python/bin" >> "$GITHUB_PATH"
+      - name: Agent MCP discovery and direct live-session verification
+        run: |
+          python setup/mcp.py check --venv .cache/gcd-python
+          python scripts/agent_mcp_regression.py --work-dir runs/agent-mcp
+          python scripts/live_session_regression.py --work-dir runs/live-session
       - name: Verify package identities and prepare immutable inputs
         run: |
           openroad -version | tee .cache/gcd-tools/openroad-version.txt
@@ -95,6 +105,8 @@ jobs:
           path: |
             runs/gcd-reference/
             runs/live-inspection/
+            runs/agent-mcp/
+            runs/live-session/
             .cache/gcd-tools/*.json
             .cache/gcd-tools/*.txt
             .cache/gcd-tools/*.log

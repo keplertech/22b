@@ -81,6 +81,7 @@ class SessionTests(unittest.TestCase):
         session._golden_ref, session._candidate_ref = dict(GOLDEN_REF), dict(CANDIDATE_REF)
         session._netlist = SimpleNamespace(get_top=lambda: session._candidate)
         session._bridge = SimpleNamespace(lock=threading.RLock(), close=Mock())
+        session._bridge.connection_file = session.directory / "private-connection.json"
         session._session_id = "fixture-session"
         session._client = Mock()
         session._client.busy.return_value = False
@@ -94,6 +95,33 @@ class SessionTests(unittest.TestCase):
         fingerprint = patch.object(live, "_fingerprint", side_effect=lambda design: design.signature)
         fingerprint.start()
         self.addCleanup(fingerprint.stop)
+
+    def test_agent_attachment_is_a_copy_without_secrets_or_side_effects(self):
+        self.session._bridge.connection_file.write_text('{"token": "never-return-this"}')
+        self.session.proof = {"status": "proved"}
+        info = self.session.mcp_attachment()
+        self.assertEqual(info["design1"], GOLDEN_REF)
+        self.assertEqual(info["design2"], CANDIDATE_REF)
+        self.assertEqual(info["revision"], 0)
+        self.assertNotIn("never-return-this", json.dumps(info))
+        info["design1"]["db_id"] = 200
+        self.assertEqual(self.session._golden_ref, GOLDEN_REF)
+        self.assertEqual(self.session.proof, {"status": "proved"})
+        self.session._candidate.dumpVerilog.assert_not_called()
+        self.session._client.call.assert_not_called()
+
+    def test_agent_attachment_rejects_closed_busy_or_untracked_sessions(self):
+        self.session._closed = True
+        with self.assertRaises(RuntimeError):
+            self.session.mcp_attachment()
+        self.session._closed = False
+        self.session._pending = True
+        with self.assertRaises(RuntimeError):
+            self.session.mcp_attachment()
+        self.session._pending = False
+        self.session._candidate.signature = "untracked"
+        with self.assertRaises(RuntimeError):
+            self.session.mcp_attachment()
 
     def test_edits_accumulate_and_sec_is_automatic(self):
         def edit(top):

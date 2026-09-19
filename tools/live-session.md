@@ -41,6 +41,14 @@ Normal sessions and regressions do not need the override.
 
 ## Use Across Cells
 
+To let the agent call Kepler directly, first [register MCP with its host](../setup/README.md).
+`session.mcp_attachment()` returns a connection-file path, session ID, current
+revision and both native design references, without exposing the file's token.
+The agent can attach its own MCP server to this same owner and call its tools.
+This is additional access, not removal of the helper's automatic post-edit SEC.
+Keep direct proofs and edits sequential and confirm the revision after each
+proof; the setup guide documents evidence checks and detachment.
+
 Start one fresh Jupyter/Python kernel using that environment and the 22b root
 as its working directory. Use a local, private connection file; do not expose
 the kernel or its credentials to a network or include them in artifacts.

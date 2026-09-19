@@ -13,6 +13,7 @@ flow/rtl/                  RTL authoring and design changes
 examples/backend/gcd/      GCD design and independent model task
 examples/rtl/              RTL example conventions
 tools/                     Shared tool skills and package installation guides
+setup/                     Direct MCP registration for Codex and Claude Code
 toolchain.json             Pinned package and fixture references
 tests/                     Fast, offline repository and example checks
 ```
@@ -30,7 +31,9 @@ if the inline player is unavailable.
 
 ## Start
 
-1. Read the [package setup](tools/README.md). Kepler Formal runs through its
+1. Use [agent MCP setup](setup/README.md) to expose Kepler tools directly in
+   Codex or Claude Code. Read the [package setup](tools/README.md) for other tools.
+   Kepler Formal runs through its
    Python-backed MCP with native wheels; OpenROAD uses Nix. No source submodules
    are required in 22b.
 2. Choose the [backend](flow/backend/SKILL.md) or [RTL](flow/rtl/SKILL.md) flow.

@@ -11,6 +11,9 @@ description: Coordinate open-source hardware design tools for backend optimizati
 - For RTL creation or changes, read [RTL](flow/rtl/SKILL.md).
 - Read [package setup](tools/README.md) only when a needed tool is absent or its
   version does not match the experiment. Check existing installations first.
+- If Kepler tools are absent from the agent's own tool list, use
+  [agent MCP setup](setup/README.md). Installing a Python package or calling
+  the live helper's internal client does not register tools with the host app.
 
 Load only the tool skill relevant to the next operation. A gate-replacement
 task needs connectivity and replacement guidance, not constant-propagation

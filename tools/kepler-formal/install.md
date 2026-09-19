@@ -8,6 +8,10 @@ Use the [shared Python environment](../README.md). Check existing versions and
 the MCP commit before installing; `kepler-formal-mcp==0.1.0` alone does not
 distinguish the new Python server from the older CLI wrapper.
 
+For Codex or Claude Code, [agent setup](../../setup/README.md) installs these
+pins, checks discovery and safely adds project-scoped MCP configuration. The
+generic JSON below is not Codex's configuration format.
+
 ```sh
 python3 -m venv .venv
 . .venv/bin/activate
