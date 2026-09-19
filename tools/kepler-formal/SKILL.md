@@ -5,6 +5,14 @@ description: Verify mapped designs in memory or from files with the Python-backe
 
 # Verify A Candidate
 
+Prefer the agent's registered Kepler MCP tools for explicit verification.
+If unavailable, follow [agent setup](../../setup/README.md); do not claim direct
+agent access merely because the Python helper can launch MCP internally.
+For live designs, `session.mcp_attachment()` supplies the private descriptor
+path and native references for `attach_session` and `verify_session`.
+Follow the setup guide's revision and report checks. Keep edits through
+`apply_edit`, whose automatic SEC remains mandatory even when direct tools exist.
+
 Use the [package guide](install.md) if needed. Always request SEC, including
 for combinational edits: the upstream MCP defaults to **LEC**. Keep originals,
 libraries and constraints unchanged. For iterative Python/Jupyter work use the

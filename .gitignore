@@ -11,3 +11,8 @@ result-*
 /thirdparty/
 /flow_runs/
 /skill_adapters/
+# Machine-specific agent setup, never shared as portable configuration.
+/.codex/config.toml
+/.codex/config.toml.22b-*
+/.mcp.json
+/.mcp.json.22b-*

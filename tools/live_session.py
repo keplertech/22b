@@ -252,6 +252,17 @@ class LiveDesignSession:
                 self._check()
             return self._record()
 
+    def mcp_attachment(self):
+        """Return local attachment coordinates for an agent's independent MCP client.
+
+        The private descriptor stays on disk; its token is never returned. This
+        does not transfer ownership or replace automatic post-edit verification.
+        """
+        with self._inspection_access():
+            return {"connection_file": str(self._bridge.connection_file),
+                    "session_id": self._session_id, "revision": self.revision,
+                    "design1": dict(self._golden_ref), "design2": dict(self._candidate_ref)}
+
     @contextmanager
     def _inspection_access(self):
         if not self._operation.acquire(blocking=False):
