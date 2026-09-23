@@ -44,6 +44,9 @@ or comparison afterward, not hints for independent discovery.
    copies never replace either live design. If a design is later
    exported for another tool, verify that exported representation separately.
    Preserve the structured outcome, logs and actual output coverage.
+   For exploration with rollback and external tools, select
+   [versioned sessions](tools/session-history.md): numbered netlist checkpoints,
+   ten recent edits by default, explicit undo, and a protected measured best.
 6. For backend tasks, rerun [OpenROAD](tools/openroad/SKILL.md) with the same
    physical setup. Compare timing, area, estimated power, hold and routing checks.
 

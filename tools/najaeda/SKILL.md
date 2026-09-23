@@ -5,6 +5,10 @@ description: Inspect and edit structural hardware connectivity with NajaEDA, pre
 
 # Structural Editing
 
+Use [versioned sessions](../session-history.md) for automatic netlist checkpoints,
+retention and undo. Golden stays live and immutable. Undo restores only candidate;
+obtain fresh Kepler attachment references afterward, then continue editing.
+
 Use the [package guide](install.md). For incremental edits in one Python/Jupyter
 kernel, read [persistent sessions](../live-session.md). Supply only `edit(top)`
 and pure helpers to `session.apply_edit(script)`; do not import, reset, load or
