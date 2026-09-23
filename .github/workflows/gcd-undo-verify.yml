@@ -1,0 +1,98 @@
+name: GCD packaged undo
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/gcd-undo-verify.yml'
+      - 'scripts/**'
+      - 'setup/**'
+      - 'examples/backend/gcd/**'
+      - 'toolchain.json'
+      - 'tools/**'
+      - 'tests/**'
+  pull_request:
+    paths:
+      - '.github/workflows/gcd-undo-verify.yml'
+      - 'scripts/**'
+      - 'setup/**'
+      - 'examples/backend/gcd/**'
+      - 'toolchain.json'
+      - 'tools/**'
+      - 'tests/**'
+
+permissions:
+  contents: read
+
+jobs:
+  undo-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUN: runs/gcd-undo
+      PYTHONPATH: ''
+      NAJAEDA_SRC: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Offline checks
+        run: python -m unittest discover -s tests -v
+      - name: Install Nix (reuse an existing installation)
+        uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            max-jobs = 0
+            builders =
+      - name: Obtain cached OpenROAD (fail before downloading dependencies on a cache miss)
+        run: |
+          mkdir -p .cache/gcd-tools
+          df -h . /nix | tee .cache/gcd-tools/disk-before.txt
+          openroad=$(python -c 'import json; print(json.load(open("toolchain.json"))["openroad"]["installable"])')
+          cache=$(python -c 'import json; print(json.load(open("toolchain.json"))["openroad"]["cache"])')
+          bash tools/install-cached-package.sh openroad "$openroad" "$cache" .cache/gcd-tools
+          echo "$PWD/.cache/gcd-tools/openroad/bin" >> "$GITHUB_PATH"
+      - name: Install native Python wheels and pinned pure-Python Kepler MCP package
+        run: |
+          mkdir -p .cache/agent-config-codex .cache/agent-config-claude
+          python setup/mcp.py configure --client codex --project .cache/agent-config-codex \
+            --venv .cache/gcd-python --apply | tee .cache/gcd-tools/setup-codex.log
+          python setup/mcp.py configure --client claude-code --project .cache/agent-config-claude \
+            --venv .cache/gcd-python --apply | tee .cache/gcd-tools/setup-claude.log
+          .cache/gcd-python/bin/python -m pip freeze > .cache/gcd-tools/python-packages.txt
+          echo "$PWD/.cache/gcd-python/bin" >> "$GITHUB_PATH"
+      - name: Agent MCP discovery and existing live-session regressions
+        run: |
+          python setup/mcp.py check --venv .cache/gcd-python
+          python scripts/agent_mcp_regression.py --work-dir runs/agent-mcp
+          python scripts/live_session_regression.py --work-dir runs/live-session
+          python scripts/live_inspection_regression.py --work-dir runs/live-inspection
+      - name: Version history retention, failures, undo and continued editing
+        run: python scripts/versioned_session_regression.py --jupyter --work-dir runs/versioned-session
+      - name: GCD baseline, edit and undo with Scope, SEC and three fresh OpenROAD runs
+        run: |
+          openroad -version | tee .cache/gcd-tools/openroad-version.txt
+          python scripts/gcd_undo_regression.py --work-dir "$RUN"
+      - name: Preserve baseline, edited and restored observations and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gcd-packaged-undo
+          path: |
+            runs/gcd-undo/
+            runs/versioned-session/
+            runs/live-inspection/
+            runs/agent-mcp/
+            runs/live-session/
+            .cache/gcd-tools/*.json
+            .cache/gcd-tools/*.txt
+            .cache/gcd-tools/*.log
+          if-no-files-found: warn
+          retention-days: 14

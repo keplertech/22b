@@ -1,5 +1,9 @@
 # Persistent Python/Jupyter Sessions
 
+For automatic numbered Verilog checkpoints, configurable retention, undo and a
+protected best result, use [versioned sessions](session-history.md). That opt-in
+mode builds on this helper; the no-export mode described below remains available.
+
 Use this mode for cumulative NajaEDA edits with automatic SEC after each edit.
 One dedicated kernel holds two designs: immutable golden and mutable candidate.
 The candidate is never replaced by a reload between iterations. Both designs

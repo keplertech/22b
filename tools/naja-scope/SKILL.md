@@ -5,6 +5,10 @@ description: Inspect design connectivity through Naja-Scope MCP to establish dri
 
 # Inspect Before Rewiring
 
+For [versioned sessions](../session-history.md), resolve the current numbered
+checkpoint (or a requested historical revision) before querying. Reload Scope
+when that selection changes, including after undo. Reuse an unchanged loaded copy.
+
 Use the [package guide](install.md). Discover the installed typed-tool schemas,
 then load Liberty and Verilog with `load_liberty` and `load_verilog`. Confirm the
 top and loaded design with `status` before querying.

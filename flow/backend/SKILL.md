@@ -5,6 +5,12 @@ description: Improve a synthesized design using OpenROAD physical reports, Naja-
 
 # Backend Improvement
 
+For iterative optimization with undo, use
+[session history](../../tools/session-history.md). Keep measurements tied to the
+exact numbered netlist and unchanged physical setup. Scope defaults to the active
+checkpoint; after undo it must inspect the restored revision. Keep the measured
+best independently of rolling history, according to the stated objective.
+
 Read the [parent contract](../../SKILL.md). Start from mapped Verilog, Liberty,
 LEF/technology data and an SDC; RTL synthesis is not implicit in this flow.
 
