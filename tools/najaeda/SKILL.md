@@ -5,28 +5,32 @@ description: Inspect and edit structural hardware connectivity with NajaEDA, pre
 
 # Structural Editing
 
-Use [versioned sessions](../session-history.md) for automatic netlist checkpoints,
-retention and undo. Golden stays live and immutable. Undo restores only candidate;
-obtain fresh Kepler attachment references afterward, then continue editing.
+Use the [package guide](install.md). Keep the execution mode selected by the
+backend/RTL skill; this tool skill does not require a flow helper. NajaEDA is
+accessed through Python in this repository, not a separate editing MCP server.
 
-Use the [package guide](install.md). For incremental edits in one Python/Jupyter
-kernel, read [persistent sessions](../live-session.md). Supply only `edit(top)`
-and pure helpers to `session.apply_edit(script)`; do not import, reset, load or
-dump designs inside the script. The session owns loading and automatically runs
-SEC against golden. Each edit starts from the previous candidate, including a
-partially executed edit that needs repair after an exception.
+In **managed mode**, follow [session startup](../live-session.md) and supply
+only `edit(top)` and pure helpers to `session.apply_edit(script)`. Do not import,
+reset, load or dump inside that restricted script. The helper owns these steps
+and automatic SEC. Undo and checkpoint rules are in its session guide.
 
-For a separate, file-based process, load Liberty before mapped Verilog:
+In **direct mode**, use the Python API yourself and the
+[direct revision recipe](../../flow/direct-revisions.md). Loading, editing,
+exporting and requesting SEC are explicit actions; no session helper is used.
+
+In a fresh candidate-only process, load Liberty before mapped Verilog:
 
 ```python
 from najaeda import netlist
 
-netlist.reset()
 netlist.load_liberty([liberty_path])
 top = netlist.load_verilog([input_path])
 if top is None:
     raise RuntimeError("No top loaded")
 ```
+
+Do not reset an existing universe holding someone else's designs. Direct mode
+uses an isolated candidate process so golden remains an immutable input file.
 
 For local gate replacements read [the boundary-preserving recipe](gate-replacement.md).
 Do not copy unrelated constant-source or traversal helpers into an editing script.

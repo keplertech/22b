@@ -1,0 +1,62 @@
+name: Managed and direct flow modes
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/flow-modes-verify.yml'
+      - 'SKILL.md'
+      - 'flow/**'
+      - 'tools/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'setup/**'
+      - 'toolchain.json'
+  pull_request:
+    paths:
+      - '.github/workflows/flow-modes-verify.yml'
+      - 'SKILL.md'
+      - 'flow/**'
+      - 'tools/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'setup/**'
+      - 'toolchain.json'
+
+permissions:
+  contents: read
+
+jobs:
+  tool-modes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: ''
+      NAJAEDA_SRC: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Offline skills, mode routing and proof guards
+        run: python -m unittest discover -s tests -v
+      - name: Install or reuse packaged tools and check MCP discovery
+        run: |
+          mkdir -p .cache/mode-agent
+          python setup/mcp.py configure --client codex --project .cache/mode-agent \
+            --venv .cache/mode-python --apply
+          .cache/mode-python/bin/python setup/mcp.py check --venv .cache/mode-python
+      - name: Managed history inside a real Jupyter kernel
+        run: .cache/mode-python/bin/python scripts/versioned_session_regression.py --jupyter --work-dir runs/mode-managed
+      - name: Direct NajaEDA and MCP tools without the flow helper
+        run: .cache/mode-python/bin/python scripts/direct_tools_regression.py --work-dir runs/mode-direct
+      - name: Preserve actual mode evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-mode-regressions
+          path: |
+            runs/mode-managed/
+            runs/mode-direct/
+          if-no-files-found: warn
+          retention-days: 14

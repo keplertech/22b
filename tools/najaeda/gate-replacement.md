@@ -17,9 +17,13 @@ Purpose: local structural replacement. This is not a constant-propagation helper
    attached. Use upper connections for child-instance pins and lower connections
    for top/model terminals; those are different sides of the hierarchy.
 6. Delete the old instances only after every replacement is connected. If any
-   operation fails, discard the in-memory candidate; never export a half-edit.
+   operation fails in direct mode, discard that staging candidate. In managed
+   mode, use the owner's repair/undo operation, never reset its universe.
+   Never export a half-edit.
    Temporary overlapping drivers must not survive into an exported design.
-7. Export, reload and run SEC. Preserve the input file and record the script.
+7. Verify the exported design with SEC. Direct mode explicitly exports and
+   requests the proof; managed mode performs these steps through its helper.
+   Preserve the input file and record the script.
 
 Preserve every boundary output, including intermediate signals with consumers
 outside the replacement group. Reducing logic depth does not justify dropping

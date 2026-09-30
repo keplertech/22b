@@ -5,6 +5,17 @@ description: Author or modify RTL with explicit interface and cycle-level behavi
 
 # RTL Design
 
+Select one execution flavor:
+
+- [Managed](managed/SKILL.md): use the Python session helper for the supported
+  structural-edit stage, with automatic SEC, saved revisions and undo.
+- [Direct](direct/SKILL.md): coordinate the tools and revision files yourself,
+  without the flow helper, including source-level RTL work.
+
+Use managed by default for iterative structural work, or honor the requested
+mode. Neither mode adds a synthesis frontend or widens a tool's input support.
+The [session policy](../session-policy.md) applies to both.
+
 Read the [parent contract](../../SKILL.md). Establish the interface, clock/reset
 behavior, widths, signedness, latency, throughput and parameter configuration.
 

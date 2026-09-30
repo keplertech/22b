@@ -1,17 +1,21 @@
 # Persistent Python/Jupyter Sessions
 
-For automatic numbered Verilog checkpoints, configurable retention, undo and a
-protected best result, use [versioned sessions](session-history.md). That opt-in
-mode builds on this helper; the no-export mode described below remains available.
+In **managed mode**, use `VersionedDesignSession` by default. It adds
+automatic numbered Verilog checkpoints, configurable retention, undo and a
+protected measured best result to the live editing helper. See
+[session history](session-history.md) for retention and measurement controls.
+The original `LiveDesignSession` remains an explicit
+[no-export option](#explicit-no-export-mode), not the default startup path.
+Direct mode does not use either helper; follow its
+[revision recipe](../flow/direct-revisions.md) instead.
 
-Use this mode for cumulative NajaEDA edits with automatic SEC after each edit.
 One dedicated kernel holds two designs: immutable golden and mutable candidate.
-The candidate is never replaced by a reload between iterations. Both designs
-have their own database and loaded Liberty definitions; library sharing and
-Naja-Scope attachment are deferred. No design dump is needed for verification.
-For on-demand inspection with the existing file-based Scope server, use
-[inspection checkpoints](naja-scope/checkpoints.md). They export a labelled copy
-without replacing either live design.
+Ordinary edits accumulate in memory; only explicit undo reloads the candidate.
+Both designs have their own database and loaded Liberty definitions; library
+sharing and Naja-Scope attachment are deferred. Mandatory live SEC uses these
+in-memory designs. Each saved Verilog checkpoint also gets separate file-based
+SEC before publication. Scope and physical tools consume those checkpoints,
+not the live objects.
 
 ## Setup
 
@@ -36,9 +40,10 @@ The helper checks the installed Git commit, not only the package version label.
 When upgrading an existing MCP installation, the wrapper-only force reinstall
 is needed because different Git revisions can share the same version label.
 Reuse the installation if its commit already matches the pin.
-For explicit wrapper development only, you may instead install a reviewed local
-checkout with `python -m pip install --no-deps /absolute/kepler-formal-mcp` and
-pass that path as `development_mcp_checkout`. This override requires installation
+For explicit wrapper development in the no-export mode only, you may instead
+install a reviewed local checkout with
+`python -m pip install --no-deps /absolute/kepler-formal-mcp` and pass that path
+as `development_mcp_checkout`. This override requires installation
 from that exact path and matches installed wrapper source to the checkout,
 recording hashes in `packages.json`. It fails if sources change after installation.
 Normal sessions and regressions do not need the override.
@@ -61,15 +66,21 @@ Keep the same kernel and `session` object across calls.
 First cell:
 
 ```python
-from tools.live_session import LiveDesignSession
+from tools.versioned_session import VersionedDesignSession
 
-session = LiveDesignSession(
+session = VersionedDesignSession(
     reference="/absolute/original.v",
     liberty_files=["/absolute/cells.lib"],
-    work_dir="runs/my-live-session",  # Must not already exist.
+    sessions_root="runs",  # Creates a new session_<UTC-date-and-time> directory.
+    retention=10,
 )
-initial_proof = session.verify()
+initial_proof = session.status()["proof"]
 ```
+
+Initialization verifies and saves baseline revision zero; no extra `verify()`
+call is needed. Ten recent edited checkpoints plus baseline are retained by
+default. To track a protected best result, supply an objective and record actual
+tool measurements as described in [session history](session-history.md).
 
 The model supplies a reviewed script containing `def edit(top):` and optionally
 pure helpers. The only design object supplied is the candidate. Its restricted
@@ -91,6 +102,11 @@ print(result["status"], result["proved_outputs"], result["existing_outputs"])
 
 `apply_edit` validates before mutation, invalidates the previous proof, edits
 the current candidate, and automatically runs SEC against original golden.
+It then exports and verifies the saved representation before publishing a new
+numbered checkpoint. Its returned result is the live proof; inspect
+`session.checkpoint()["export_proof"]` for the separate saved-file proof.
+If checkpointing fails, the call raises and the live edit is not automatically
+undone; current-checkpoint access stays blocked until repair or undo.
 It does not ask a model to select the verification mode. The MCP attaches to
 this interpreter and calls the native Python library using explicit native
 references: session ID, database ID, library ID, and design ID. It resolves
@@ -106,18 +122,23 @@ design IDs in the two databases cannot redirect verification. A mismatched
 pair in either the proof response or retrieved report is rejected.
 These native IDs are valid only for this live universe; they are not restart
 or reload handles. Do not destroy/reload designs or databases behind the
-session. Close it and obtain fresh references in a new session instead.
+session. Use `session.undo()` for a controlled restore. It replaces the candidate
+and expires the old binding; call `session.mcp_attachment()` afterward and
+reattach external Kepler clients using the fresh session ID and references.
 
-Inspect `session.status()` for current revision, state and proof. Closing with
-`session.close()` detaches the MCP and destroys only this session's universe.
+Inspect `session.status()` for state and live proof. `revision` is the monotonic
+edit-attempt counter; `netlist_revision` is the active saved design and can move
+back on undo. A missing `netlist_revision` means live changes are not saved.
+Closing with `session.close()` detaches the MCP and destroys only this session's universe.
 Opening refuses an already-loaded universe rather than resetting user data.
 
-`session.export_inspection()` explicitly exports the current candidate for a
-separate Scope server and returns its manifest and loading paths.
-`session.inspection_status(manifest_path)` checks that copy's revision and
-file integrity without exporting again. Neither method runs SEC, certifies the
-exported representation, or changes the live proof. Ordinary edit/verify calls
-still perform no exports. Inspection of a rejected candidate is diagnostic only.
+For Scope, use `session.checkpoint()` for current or `session.checkpoint(0)` for
+baseline. Load the selected Verilog and `session.libraries` in Scope's separate
+MCP server, reloading only when the selection changes. The existing
+`ScopeCheckpoints` adapter automates this for synchronous clients. Do not call
+`export_inspection()` for normal versioned queries: the saved file already
+exists. Use `session.use_checkpoint()` to pin an input during external runs.
+See [selection and inspection](session-history.md#select-and-inspect).
 
 ## Outcomes And Recovery
 
@@ -132,7 +153,10 @@ still perform no exports. Inspection of a rejected candidate is diagnostic only.
 
 A rejected script that never executes leaves the existing revision and proof
 intact. An execution error or counterexample does not roll back the candidate:
-inspect the error and repair that same cumulative candidate through `apply_edit`.
+inspect the error and repair that same cumulative candidate through `apply_edit`,
+or call `undo()` to restore the last saved checkpoint. After a successful saved
+edit, `undo()` restores the previous retained revision instead, deleting the
+discarded checkpoint only after successful restoration and SEC. Best is protected.
 After a verification timeout, wait until the native call is idle and explicitly
 call `session.verify()` before editing again. Never treat a timeout as a warning
 proof. Do not forcibly destroy designs while native verification is running.
@@ -140,8 +164,34 @@ proof. Do not forcibly destroy designs while native verification is running.
 The session hashes native connectivity, model identities and revisions before
 and after operations to detect untracked changes. Direct hostile Python can
 bypass such safeguards; use trusted dedicated kernels. A script or native
-crash loses the in-memory session; automatic checkpoints/recovery are not
-implemented in this first version.
+crash loses the in-memory session, but already published checkpoints remain on
+disk. Automatic restart/resume is not implemented. Retain saved files and proof
+evidence; they are not live design handles. Do not silently replace original
+golden with a saved candidate when starting a new session.
+
+## Explicit No-Export Mode
+
+Use the original helper only when no-export behavior is explicitly required,
+or when maintaining existing no-export regressions. It has mandatory live SEC
+but no automatic saved history, retention, best selection or undo:
+
+```python
+from tools.live_session import LiveDesignSession
+
+session = LiveDesignSession(
+    reference="/absolute/original.v",
+    liberty_files=["/absolute/cells.lib"],
+    work_dir="runs/my-no-export-session",  # Must not already exist.
+)
+initial_proof = session.verify()
+```
+
+Ordinary edits in this mode never dump or reload designs. Explicit
+`export_inspection()` and `inspection_status(manifest_path)` support
+[on-demand inspection](naja-scope/checkpoints.md), but do not prove exported
+Verilog. Verify any exported physical-tool input separately. Repair failed edits
+through `apply_edit` or start a fresh session; this mode has no `undo()`.
+Existing callers keep these semantics until they explicitly switch classes.
 
 ## Evidence And Validation
 
@@ -156,14 +206,15 @@ evidence, not proof of a later revision.
 Run the real packaged integration separately from offline tests:
 
 ```sh
-python scripts/live_session_regression.py --work-dir runs/live-session-check
+python scripts/versioned_session_regression.py --jupyter --work-dir runs/history-check
 ```
 
-It uses separate cells in one actual Jupyter kernel and the actual MCP/native
-SEC: two cumulative equivalent edits, a rejected counterexample, repair,
-invalid-script rejection, and stale-proof detection. No design export occurs.
+It exercises actual MCP/native SEC and Scope inside a Jupyter kernel, including
+checkpoints, retention, failed edits, undo, refreshed references and further edits.
+The unchanged `scripts/live_session_regression.py` separately tests the original
+no-export mode across notebook cells; the existing GCD workflow is unchanged.
 `python -m unittest discover -s tests -v` checks policy offline, not native proof.
 
-Physical-design tools still require exported input files. An in-memory proof
-alone does not certify the eventually exported file; use the existing
-[file-based verifier](kepler-formal/SKILL.md) for that separate handoff.
+The separate GCD undo workflow checks physical measurements against saved
+checkpoints. Neither offline tests nor a small session fixture establish GCD
+timing results.

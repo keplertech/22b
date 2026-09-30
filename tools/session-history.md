@@ -1,9 +1,12 @@
 # Numbered Netlist History And Undo
 
-Use `VersionedDesignSession` when exploration needs saved netlists, rollback,
-Scope inspection and physical measurements. It extends the existing
-[live session](live-session.md); the original no-export mode is unchanged.
+`VersionedDesignSession` is the default for managed iterative work, with saved
+netlists, rollback, Scope inspection and physical measurements. Follow the
+[standard startup](live-session.md) for installation and shared-kernel setup.
+The original no-export `LiveDesignSession` remains an explicit compatibility mode.
 All implementation is in 22b, using the existing packaged tools.
+Direct mode follows the [file-based recipe](../flow/direct-revisions.md) instead
+of importing this helper or its storage adapter.
 
 ```python
 from tools.versioned_session import VersionedDesignSession

@@ -1,4 +1,4 @@
-"""Opt-in live editing with numbered Verilog checkpoints and checked undo."""
+"""Managed agent session: live editing, numbered checkpoints and checked undo."""
 
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor

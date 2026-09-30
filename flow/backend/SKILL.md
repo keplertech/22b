@@ -5,11 +5,16 @@ description: Improve a synthesized design using OpenROAD physical reports, Naja-
 
 # Backend Improvement
 
-For iterative optimization with undo, use
-[session history](../../tools/session-history.md). Keep measurements tied to the
-exact numbered netlist and unchanged physical setup. Scope defaults to the active
-checkpoint; after undo it must inspect the restored revision. Keep the measured
-best independently of rolling history, according to the stated objective.
+Select one execution flavor:
+
+- [Managed](managed/SKILL.md): the Python session helper handles edits, SEC,
+  checkpoints and undo. Default for iterative structural work.
+- [Direct](direct/SKILL.md): the agent coordinates tools and files without the
+  flow helper. Use when explicitly requested; do not silently switch to managed.
+
+Both follow the [session policy](../session-policy.md). Measurements belong to
+an exact numbered revision and unchanged physical setup, not just "the latest"
+filename. Scope must inspect the restored revision after undo.
 
 Read the [parent contract](../../SKILL.md). Start from mapped Verilog, Liberty,
 LEF/technology data and an SDC; RTL synthesis is not implicit in this flow.
