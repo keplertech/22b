@@ -60,10 +60,24 @@ overwriting them. Keep normal host approval controls enabled. Codex's generated
 tool timeout allows a 600-second proof plus transport overhead; for other hosts
 ensure their MCP call timeout also accommodates the requested proof duration.
 
-## Attach To The Live Designs
+## Choose How To Use The Tools
 
-Start the [persistent session](../tools/live-session.md) in a dedicated kernel
-using this same environment. In that kernel:
+Registration works for both flow flavors. **Direct mode** uses the agent's
+registered Kepler file-based tools with golden/candidate paths; it does not
+instantiate the flow helper or attach to its session. Follow the selected
+backend/RTL direct skill and [Kepler operations](../tools/kepler-formal/SKILL.md).
+Register [Scope](../tools/naja-scope/install.md) separately when needed; this
+setup command does not register Scope or an editing MCP for NajaEDA.
+
+The attachment procedure below is for **managed mode** (or an explicitly
+provided compatible live owner), not a prerequisite for all MCP usage.
+
+## Attach To Managed Live Designs
+
+For managed mode, start `VersionedDesignSession` from the
+[session startup example](../tools/live-session.md) in a dedicated kernel using
+this same environment. It owns automatic checkpoints and undo as well as live
+SEC. In that kernel:
 
 ```python
 attachment = session.mcp_attachment()
@@ -87,6 +101,11 @@ MCP aliases. Keep edits and direct proofs sequential. Recheck
 `session.mcp_attachment()` after a direct proof: its revision and references
 must still match the ones observed before it. A proof for an older revision
 does not certify the current candidate.
+
+After `session.undo()`, fetch a new attachment and repeat the attachment steps
+above: undo expires the previous binding even if native design IDs are reused.
+The attempt counter never rewinds; `session.status()["netlist_revision"]`
+identifies the restored saved version. Do not reuse pre-undo references.
 
 Do not read, print or upload the connection file's token. Only its path is
 returned. Attachment requires the same machine/user and permission to reach

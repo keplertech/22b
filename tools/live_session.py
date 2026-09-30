@@ -130,6 +130,8 @@ class LiveDesignSession:
     is deliberately restricted; neither Python nor the Naja native API is an OS
     sandbox. Verification needs no exports or reloads. Inspection copies are
     exported only on an explicit call, never reloaded into this kernel.
+    For managed agent startup, use VersionedDesignSession in versioned_session;
+    this base class preserves the explicit no-export API for existing callers.
     """
 
     def __init__(self, reference, liberty_files, work_dir, *, timeout=600,

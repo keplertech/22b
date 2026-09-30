@@ -9,6 +9,10 @@ description: Coordinate open-source hardware design tools for backend optimizati
 
 - For a mapped design and physical reports, read [backend](flow/backend/SKILL.md).
 - For RTL creation or changes, read [RTL](flow/rtl/SKILL.md).
+- Select that flow's **managed** or **direct** skill before editing. Honor an
+  explicitly requested mode; otherwise use managed for iterative structural
+  work. Read only the selected mode, not both. Switching requires a deliberate
+  handoff of inputs and evidence, not a silent fallback after a failure.
 - Read [package setup](tools/README.md) only when a needed tool is absent or its
   version does not match the experiment. Check existing installations first.
 - If Kepler tools are absent from the agent's own tool list, use
@@ -32,18 +36,16 @@ or comparison afterward, not hints for independent discovery.
    stale output files as evidence for a new run.
 3. Inspect using reports and, when structural connectivity matters,
    [Naja-Scope](tools/naja-scope/SKILL.md). Separate observations from hypotheses.
-   In a live editing session, refresh Scope only when the next decision needs
-   current connectivity; use its revision-labelled inspection checkpoint, not
-   a stale copy left from an earlier edit.
+   Refresh Scope when the next decision needs a different numbered revision;
+   do not reuse a stale or historical copy for a current-design question.
 4. Use [NajaEDA](tools/najaeda/SKILL.md) for structural edits. Review and syntax
    check generated code before running it with only the needed file access.
-5. Run [Kepler Formal SEC through MCP](tools/kepler-formal/SKILL.md). For iterative
-   in-memory work, use the [persistent session](tools/live-session.md): keep one
-   unchanged golden and one cumulatively edited candidate, with automatic SEC
-   after every edit and no design dumps for verification. Optional inspection
-   copies never replace either live design. If a design is later
-   exported for another tool, verify that exported representation separately.
-   Preserve the structured outcome, logs and actual output coverage.
+5. Run [Kepler Formal SEC through MCP](tools/kepler-formal/SKILL.md) and retain
+   actual outcomes and coverage. Managed mode enforces live SEC and separately
+   checks exported checkpoints through its helper. Direct mode calls the tools
+   explicitly; the skills require the checks but do not mechanically enforce
+   them. Follow the shared [session policy](flow/session-policy.md). Never
+   describe a live proof as proof of an exported file.
 6. For backend tasks, rerun [OpenROAD](tools/openroad/SKILL.md) with the same
    physical setup. Compare timing, area, estimated power, hold and routing checks.
 

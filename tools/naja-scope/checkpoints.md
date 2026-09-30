@@ -1,5 +1,9 @@
 # Inspect A Live Candidate Without Binding
 
+This is the on-demand handoff for the explicit no-export `LiveDesignSession`.
+For the default `VersionedDesignSession`, use its already saved
+[numbered checkpoints](../session-history.md#select-and-inspect) instead.
+
 Use this file-based handoff with the pinned Naja-Scope MCP server. Golden,
 candidate and automatic SEC remain in their existing Python/Jupyter kernel.
 Do not import Scope or call its load/reset tools inside that kernel.

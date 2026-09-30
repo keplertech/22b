@@ -8,41 +8,34 @@ description: Verify mapped designs in memory or from files with the Python-backe
 Prefer the agent's registered Kepler MCP tools for explicit verification.
 If unavailable, follow [agent setup](../../setup/README.md); do not claim direct
 agent access merely because the Python helper can launch MCP internally.
-For live designs, `session.mcp_attachment()` supplies the private descriptor
-path and native references for `attach_session` and `verify_session`.
-Follow the setup guide's revision and report checks. Keep edits through
-`apply_edit`, whose automatic SEC remains mandatory even when direct tools exist.
-
 Use the [package guide](install.md) if needed. Always request SEC, including
 for combinational edits: the upstream MCP defaults to **LEC**. Keep originals,
-libraries and constraints unchanged. For iterative Python/Jupyter work use the
-[persistent session](../live-session.md): automatic SEC compares the cumulative
-candidate against unchanged golden in the same interpreter, without design
-exports. If a candidate is later exported, separately verify the exported
-representation reloaded from disk; in-memory proof cannot certify an exporter.
+libraries and constraints unchanged. Keep the mode selected by the flow:
+
+- **Managed:** use the [session guide](../live-session.md). Its automatic live
+  and exported-file SEC stay mandatory, even with additional direct agent MCP
+  calls. Obtain the owner's attachment and refresh it after helper undo.
+- **Direct:** call the file-based MCP tool below on immutable golden and the
+  exported candidate. No session helper, internal flow client or live attachment
+  is required. The agent explicitly requests each proof and records its evidence.
+
+Keep actual proof outcomes and coverage. In-memory proof cannot certify an
+exporter, and a skill cannot automatically enforce an agent's verification calls.
 
 Live verification selects designs using native references containing
 `session_id`, `db_id`, `library_id`, and `design_id`, not registered aliases.
 Keep the returned references; never guess IDs or select by top-module name.
 Require the proof response and retrieved report to identify the requested pair.
-Follow the [session setup](../live-session.md) to install the matching pinned
-wrapper in both the owner and MCP process. File tools are unchanged.
+For attached sessions only, follow the [session setup](../live-session.md) to
+install the matching wrapper in both owner and MCP process. Direct file-based
+mode does not need to start or attach to a live session.
 
 ## File-Based Verification
 
-For a reviewed mapped-Verilog candidate, the [client helper](verify.py) creates
-a fresh proof directory, snapshots read-only inputs, records their hashes and
-package identities, calls the MCP server, and saves proof evidence:
-
-```sh
-python tools/kepler-formal/verify.py \
-  --reference /absolute/reference.v --candidate /absolute/candidate.v \
-  --liberty /absolute/cells.lib --work-dir runs/candidate-01/proof
-```
-
-Agents may also call MCP directly. First call `get_kepler_formal_info`, then
-`create_yaml_and_run_kepler_formal` with two absolute `input_paths`, absolute
-`liberty_files`, and an unused, absolute `allowed_output_dir`. Set:
+In direct mode, first call `get_kepler_formal_info`, then
+`create_yaml_and_run_kepler_formal` through the agent's MCP connection with two
+absolute `input_paths` (golden first, candidate second), absolute `liberty_files`,
+and an unused, absolute `allowed_output_dir`. Use these options:
 
 ```json
 {
@@ -58,6 +51,16 @@ Agents may also call MCP directly. First call `get_kepler_formal_info`, then
   "yaml_output_path": "config.yaml",
   "log_file_name": "kepler.log"
 }
+```
+
+For scripted regression/command-line use, the optional [client helper](verify.py)
+creates a fresh proof directory, snapshots inputs, records hashes and package
+identities, calls MCP and saves evidence. Direct-mode agents need not use it:
+
+```sh
+python tools/kepler-formal/verify.py \
+  --reference /absolute/reference.v --candidate /absolute/candidate.v \
+  --liberty /absolute/cells.lib --work-dir runs/candidate-01/proof
 ```
 
 Use these same assumptions for reference comparisons; record any explicit

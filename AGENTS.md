@@ -1,6 +1,7 @@
 # Working In 22b
 
-- Read [SKILL.md](SKILL.md), then the selected flow skill. Load tool references
+- Read [SKILL.md](SKILL.md), then the selected flow and execution-mode skills.
+  Honor direct mode without importing the flow helper. Load tool references
   only when their operation is needed.
 - Keep reusable tool knowledge in `tools/`, application guidance in `flow/`,
   and design-specific inputs and recipes in the matching `examples/` directory.

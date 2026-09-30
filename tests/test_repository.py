@@ -7,7 +7,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILLS = [ROOT / "SKILL.md", *sorted((ROOT / "flow").glob("*/SKILL.md")),
+SKILLS = [ROOT / "SKILL.md", *sorted((ROOT / "flow").rglob("SKILL.md")),
           *sorted((ROOT / "tools").glob("*/SKILL.md"))]
 DOCS = [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "SKILL.md",
         *sorted((ROOT / "flow").rglob("*.md")),
@@ -39,7 +39,7 @@ class RepositoryTests(unittest.TestCase):
             self.assertEqual(stream.read(12)[4:8], b"ftyp")
 
     def test_skill_frontmatter(self):
-        self.assertEqual(len(SKILLS), 7)
+        self.assertEqual(len(SKILLS), 11)
         names = set()
         for path in SKILLS:
             with self.subTest(path=path.relative_to(ROOT)):

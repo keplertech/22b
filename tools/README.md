@@ -62,6 +62,10 @@ Package installation accesses public registries; design files do not need to
 leave the machine. Configuring an external model is separate and remains the
 caller's choice. No Ollama service or model is installed by this repository.
 
-For incremental editing and verification without reloading designs, see
-[persistent Python/Jupyter sessions](live-session.md). Its optional kernel
-dependencies are separate from the existing file-based workflow.
+For helper-managed incremental editing, use `VersionedDesignSession` in
+[persistent Python/Jupyter sessions](live-session.md): live SEC, automatic
+verified checkpoints, retention and undo. Ordinary edits stay in memory; undo
+reloads only the candidate. Kernel dependencies are separate from the existing
+file-based workflow. The original no-export helper remains explicitly available.
+For direct mode, use the same tool packages without a session helper; follow
+the selected flow's direct skill and [revision recipe](../flow/direct-revisions.md).

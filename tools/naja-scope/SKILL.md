@@ -5,17 +5,23 @@ description: Inspect design connectivity through Naja-Scope MCP to establish dri
 
 # Inspect Before Rewiring
 
+Keep the selected execution mode. In **managed mode**, resolve the saved file
+and libraries through the [session guide](../session-history.md). In **direct
+mode**, resolve them from the [revision manifest](../../flow/direct-revisions.md)
+without a Python flow helper or Scope adapter. Reload Scope when that selection
+changes, including after undo; reuse an unchanged loaded copy.
+
 Use the [package guide](install.md). Discover the installed typed-tool schemas,
 then load Liberty and Verilog with `load_liberty` and `load_verilog`. Confirm the
 top and loaded design with `status` before querying.
 
 The pinned MCP server owns a separate loaded copy, not the live editing
-candidate. Load original files once for baseline analysis. For a persistent
-NajaEDA session, use [inspection checkpoints](checkpoints.md): export on demand,
-record which revision Scope loaded, and check freshness before using its answers
-for a current-candidate decision. Reuse current copies; do not dump after every
-edit or reload before every query. Refresh when the next decision needs changed
-connectivity, not merely because an edit occurred.
+candidate. Load original files once for standalone baseline analysis. In the
+explicit managed no-export compatibility mode only, use
+[on-demand inspection](checkpoints.md): export when needed and check freshness
+before using its answers. Unlike versioned mode, this compatibility mode does
+not save after every edit. In both modes, reload Scope only when the next query
+needs a different revision, not before every query.
 
 - Use `resolve` for exact hierarchical objects; retain underscores and bit indices.
 - Use `get_drivers` to identify boundary input sources.
