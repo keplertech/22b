@@ -19,7 +19,10 @@ python3.13 setup/mcp.py configure --client claude-code --apply
 
 The same installer checks and reuses `.venv`, installs only missing/mismatched
 pins, tests real MCP initialization, lists tools and calls Kepler's native
-information tool, then writes the selected client's **project-local** config:
+information tool, then writes the selected client's **project-local** config.
+It also creates or reuses `.venv-scope`, the separate
+[Naja-Scope environment](../tools/naja-scope/install.md); registering the
+Naja-Scope server with the agent remains a manual step described there.
 
 | Client | Generated file | Activation |
 | --- | --- | --- |
@@ -27,7 +30,9 @@ information tool, then writes the selected client's **project-local** config:
 | Claude Code | `.mcp.json` | Approve the project MCP server, reload, check `/mcp` |
 
 Use `--venv /absolute/existing-venv` to reuse the kernel's environment, and
-`--project /absolute/project` to configure a different project. An existing venv
+`--project /absolute/project` to configure a different project. The Naja-Scope
+environment defaults to that venv's path plus `-scope`; `--scope-venv` selects
+another one. An existing venv
 is modified only with `--apply`; use a dedicated one if its other packages must
 remain unchanged. Config entries use absolute paths to that interpreter and
 this checkout's launcher, so keep both at those paths. Regenerate after moving.
@@ -41,6 +46,7 @@ The standard generated files are ignored by this repository.
 The installer uses [pinned native wheels](../tools/python-requirements.txt),
 [kernel packages](../tools/session-requirements.txt) and the
 [pinned pure-Python wrapper](../tools/kepler-formal/mcp-requirements.txt).
+The Naja-Scope environment gets only [its own pins](../tools/naja-scope/requirements.txt).
 No Nix, native build or source submodule is needed for this MCP. Missing native
 wheels are an error, not permission to compile. The launcher checks the package
 pins on every startup. Transitive dependencies are not fully locked.
@@ -51,7 +57,8 @@ Check an existing installation without installing or changing configuration:
 python3.13 setup/mcp.py check --venv .venv
 ```
 
-This checks transport/tool discovery and native loading, **not** whether your
+This checks transport/tool discovery and native loading, and that the
+Naja-Scope environment matches its pins, **not** whether your
 agent has approved or displayed the tools, and not circuit equivalence. In the
 agent's tool list confirm `get_kepler_formal_info`, `attach_session`,
 `verify_session` and `get_session_reports`. Existing user/admin settings can

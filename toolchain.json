@@ -3,7 +3,7 @@
   "nixpkgs": "github:NixOS/nixpkgs/8ce4ef6cb6f871616146b9fe26d2a5ae594e94fe",
   "kepler_formal_mcp": {
     "repository": "https://github.com/keplertech/kepler-formal-mcp.git",
-    "revision": "b66e0ee7ca83635300ab7b602a6ba7611a34c1d6",
+    "revision": "6bbba137b338f9d140f6080bd255882913dd341d",
     "version": "0.1.0"
   },
   "openroad": {
@@ -17,11 +17,15 @@
   },
   "python": {"nixpkgs_attribute": "python313"},
   "python_packages": {
-    "najaeda": "0.7.24",
-    "naja-scope": "0.1.11",
-    "kepler-formal": "0.5.0",
+    "najaeda": "0.7.33",
+    "kepler-formal": "1.0.0",
     "mcp": "1.30.0",
     "PyYAML": "6.0.3"
+  },
+  "naja_scope_packages": {
+    "naja-scope": "0.1.26",
+    "najaeda": "0.7.35",
+    "mcp": "1.30.0"
   },
   "gcd": {
     "fixture_revision": "a9147cf3aebe65e058bb3fa89c1f9e524488dbb8",

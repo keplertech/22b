@@ -1,5 +1,4 @@
-najaeda==0.7.24
-naja-scope==0.1.11
-kepler-formal==0.5.0
+najaeda==0.7.33
+kepler-formal==1.0.0
 mcp==1.30.0
 PyYAML==6.0.3

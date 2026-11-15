@@ -50,7 +50,8 @@ and [package guides](../../../../tools/README.md), not the model task.
 Follow [tool installation](../../../../tools/README.md). Use the same OpenROAD
 package for both runs. The prior demo used the Docker image recorded in
 `toolchain.json`; do not substitute those historical measurements for a new run.
-The shared Python environment pins Kepler Formal, NajaEDA and both MCP servers.
+The editing environment pins Kepler Formal, NajaEDA and the Kepler MCP server;
+Naja-Scope runs from its own pinned environment.
 
 From the repository root, in the Python environment with NajaEDA installed:
 

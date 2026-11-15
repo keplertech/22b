@@ -2,7 +2,8 @@
 
 Use this file-based handoff with the pinned Naja-Scope MCP server. Golden,
 candidate and automatic SEC remain in their existing Python/Jupyter kernel.
-Do not import Scope or call its load/reset tools inside that kernel.
+Scope is installed in [its own environment](install.md), not in that kernel's:
+do not import it or call its load/reset tools there.
 
 ## Decide Whether To Refresh
 
@@ -69,7 +70,8 @@ permissions and hashes detect accidents, not hostile same-user Python code.
 
 Freshness means the copy came from the current revision and its files are
 unchanged, **not** that export preserved connectivity. Every manifest says
-`export_equivalence: not_checked`. In-memory SEC is not a proof of dumped
+`export_equivalence: not_checked`. Scope also parses the export with its own
+NajaEDA release, which can differ from the kernel's. In-memory SEC is not a proof of dumped
 Verilog; if an inspection answer will drive a subsequent edit, confirm its
 target objects and connections in the live candidate before editing. Exported
 Verilog used for physical measurements or equivalence claims must pass the

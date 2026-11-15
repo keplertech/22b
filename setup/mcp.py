@@ -64,13 +64,18 @@ def python_in(directory):
     return directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 
-def install(directory):
+def ensure_venv(directory, option):
     python = python_in(directory)
     if directory.exists():
         if not (directory / "pyvenv.cfg").is_file() or not python.is_file():
-            raise ValueError("Existing environment is not a usable venv; choose another --venv")
+            raise ValueError(f"Existing environment is not a usable venv; choose another {option}")
     else:
         venv.EnvBuilder(with_pip=True).create(directory)
+    return python
+
+
+def install(directory):
+    python = ensure_venv(directory, "--venv")
     state = json.loads(run([python, "-I", SCRIPT, "identity"], capture=True).stdout)
     if not state["packages_match"]:
         run([python, "-I", "-m", "pip", "install", "--only-binary=:all:",
@@ -83,6 +88,50 @@ def install(directory):
         print("Reusing the matching pinned installation.", flush=True)
     run([python, "-I", "-m", "pip", "check"])
     return python
+
+
+def scope_directory(directory):
+    """Naja-Scope's own venv, beside Kepler's: it needs a newer NajaEDA than Kepler pins."""
+    return directory.with_name(directory.name + "-scope")
+
+
+def scope_state(python):
+    """Compare the Naja-Scope pins with what its environment has installed."""
+    pins = json.loads((ROOT / "toolchain.json").read_text())["naja_scope_packages"]
+    code = ("import importlib.metadata as m, json, sys\n"
+            "def version(name):\n"
+            "    try:\n"
+            "        return m.version(name)\n"
+            "    except m.PackageNotFoundError:\n"
+            "        return None\n"
+            "print(json.dumps({name: version(name) for name in sys.argv[1:]}))")
+    versions = json.loads(run([python, "-I", "-c", code, *pins], capture=True).stdout)
+    return {"packages_match": versions == pins, "versions": versions}
+
+
+def install_scope(directory):
+    """Create or reuse the Naja-Scope environment, kept separate from Kepler's."""
+    python = ensure_venv(directory, "--scope-venv")
+    if scope_state(python)["packages_match"]:
+        print("Reusing the matching Naja-Scope installation.", flush=True)
+    else:
+        run([python, "-I", "-m", "pip", "install", "--only-binary=:all:",
+             "-r", ROOT / "tools/naja-scope/requirements.txt"])
+    run([python, "-I", "-m", "pip", "check"])
+    return python
+
+
+def check_scope(directory):
+    """Read-only: the Naja-Scope server interpreter exists and matches its pins."""
+    python = python_in(directory)
+    if not python.is_file():
+        raise ValueError(f"Naja-Scope environment not found: {directory}")
+    state = scope_state(python)
+    if not state["packages_match"]:
+        raise ValueError(f"Naja-Scope environment does not match the toolchain pins: {state['versions']}")
+    result = {"naja_scope": "ready", "python": str(python), "packages": state["versions"]}
+    print(json.dumps(result, indent=2), flush=True)
+    return result
 
 
 def configuration(client, python):
@@ -200,6 +249,8 @@ def main(argv=None):
     parser.add_argument("--client", choices=("codex", "claude-code"))
     parser.add_argument("--project", type=Path, default=ROOT)
     parser.add_argument("--venv", type=Path, help="Existing/new dedicated venv (default: PROJECT/.venv)")
+    parser.add_argument("--scope-venv", type=Path,
+                        help="Existing/new Naja-Scope venv (default: the --venv path plus -scope)")
     parser.add_argument("--name", default="kepler-formal")
     parser.add_argument("--apply", action="store_true", help="Install and write project config; otherwise preview only")
     args = parser.parse_args(argv)
@@ -211,9 +262,11 @@ def main(argv=None):
         return
     project = args.project.resolve(strict=True)
     directory = args.venv.resolve() if args.venv else project / ".venv"
+    scope = args.scope_venv.resolve() if args.scope_venv else scope_directory(directory)
     python = python_in(directory)
     if args.action == "check":
         check(python)
+        check_scope(scope)
         return
     if not args.client:
         parser.error("configure requires --client")
@@ -224,12 +277,13 @@ def main(argv=None):
     old = read_config(path)
     new = render_config(old, args.client, args.name, entry)
     print(json.dumps({"client": args.client, "scope": "project", "config": str(path),
-                      "environment": str(directory), "server": entry,
-                      "apply": args.apply}, indent=2), flush=True)
+                      "environment": str(directory), "naja_scope_environment": str(scope),
+                      "server": entry, "apply": args.apply}, indent=2), flush=True)
     if not args.apply:
         print("Preview only. Add --apply to install, test MCP discovery, and register.")
         return
     install(directory)
+    install_scope(scope)
     check(python)
     write_config(path, old, new)
     print("Registered. Reload the agent and approve the trusted project/server. "
