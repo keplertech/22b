@@ -60,14 +60,17 @@ class SetupTests(unittest.TestCase):
                 setup.render_config(data, client, "test", {})
 
     def test_config_preview_does_not_install_or_write(self):
-        with patch.object(setup, "install") as install, patch.object(setup, "check") as check:
+        with patch.object(setup, "install") as install, patch.object(setup, "check") as check, \
+             patch.object(setup, "install_scope") as install_scope:
             setup.main(["configure", "--client", "codex", "--project", str(self.project)])
         install.assert_not_called()
+        install_scope.assert_not_called()
         check.assert_not_called()
         self.assertEqual(list(self.project.iterdir()), [])
 
     def test_apply_checks_before_writing(self):
         with patch.object(setup, "install", return_value=self.python), \
+             patch.object(setup, "install_scope", return_value=self.python), \
              patch.object(setup, "check", side_effect=ValueError("discovery failed")):
             with self.assertRaisesRegex(ValueError, "discovery failed"):
                 setup.main(["configure", "--client", "codex", "--project", str(self.project), "--apply"])
@@ -76,9 +79,59 @@ class SetupTests(unittest.TestCase):
     def test_conflict_is_checked_before_installation(self):
         path = self.project / ".mcp.json"
         path.write_text('{"mcpServers":{"kepler-formal":{"command":"other"}}}')
-        with patch.object(setup, "install") as install, self.assertRaises(ValueError):
+        with patch.object(setup, "install") as install, \
+             patch.object(setup, "install_scope") as install_scope, self.assertRaises(ValueError):
             setup.main(["configure", "--client", "claude-code", "--project", str(self.project), "--apply"])
         install.assert_not_called()
+        install_scope.assert_not_called()
+
+    def test_apply_installs_scope_in_its_own_environment(self):
+        venv = self.project / "env"
+        for arguments, expected in (([], self.project / "env-scope"),
+                                    (["--scope-venv", str(self.project / "other")], self.project / "other")):
+            with self.subTest(arguments=arguments), \
+                 patch.object(setup, "install", return_value=self.python) as install, \
+                 patch.object(setup, "install_scope", return_value=self.python) as install_scope, \
+                 patch.object(setup, "check"), patch.object(setup, "write_config"):
+                setup.main(["configure", "--client", "codex", "--project", str(self.project),
+                            "--venv", str(venv), "--apply", *arguments])
+            install.assert_called_once_with(venv.resolve())
+            install_scope.assert_called_once_with(expected.resolve())
+
+    def scope_venv(self):
+        directory = self.project / "venv-scope"
+        (directory / "bin").mkdir(parents=True)
+        (directory / "pyvenv.cfg").touch()
+        (directory / "bin/python").touch()
+        return directory
+
+    def test_matching_scope_environment_reused_without_pip_install(self):
+        pins = json.loads((ROOT / "toolchain.json").read_text())["naja_scope_packages"]
+        result = subprocess.CompletedProcess([], 0, json.dumps(pins))
+        with patch.object(setup, "run", return_value=result) as run:
+            setup.install_scope(self.scope_venv())
+        self.assertEqual(len(run.call_args_list), 2)
+        self.assertEqual(run.call_args_list[0].args[0][-len(pins):], list(pins))
+        self.assertEqual(run.call_args_list[-1].args[0][-2:], ["pip", "check"])
+
+    def test_mismatched_scope_environment_installs_only_its_own_binary_pins(self):
+        result = subprocess.CompletedProcess([], 0, '{"naja-scope": null, "najaeda": "0.0.0", "mcp": null}')
+        with patch.object(setup, "run", return_value=result) as run:
+            setup.install_scope(self.scope_venv())
+        command = [str(part) for part in run.call_args_list[1].args[0]]
+        self.assertIn("--only-binary=:all:", command)
+        self.assertEqual(Path(command[-1]), ROOT / "tools/naja-scope/requirements.txt")
+        self.assertFalse([part for part in command if part.endswith(("python-requirements.txt",
+                                                                     "mcp-requirements.txt"))])
+        self.assertEqual(run.call_args_list[-1].args[0][-2:], ["pip", "check"])
+
+    def test_check_rejects_missing_or_mismatched_scope_environment(self):
+        with self.assertRaisesRegex(ValueError, "not found"):
+            setup.check_scope(self.project / "absent")
+        result = subprocess.CompletedProcess([], 0, '{"naja-scope": "0.0.1"}')
+        with patch.object(setup, "run", return_value=result), \
+             self.assertRaisesRegex(ValueError, "does not match"):
+            setup.check_scope(self.scope_venv())
 
     def test_write_backups_and_noop_does_not_rewrite(self):
         path = self.project / ".mcp.json"
@@ -149,8 +202,10 @@ class SetupTests(unittest.TestCase):
         self.assertIn("--only-binary=:all:", run.call_args_list[1].args[0])
 
     def test_existing_non_venv_untouched(self):
-        with self.assertRaisesRegex(ValueError, "not a usable venv"):
-            setup.install(self.project)
+        for install in (setup.install, setup.install_scope):
+            with self.subTest(install=install.__name__), \
+                 self.assertRaisesRegex(ValueError, "not a usable venv"):
+                install(self.project)
 
     def test_launcher_uses_absolute_path_and_keeps_venv_symlink(self):
         entry = setup.configuration("codex", self.python)

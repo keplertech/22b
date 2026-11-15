@@ -14,10 +14,13 @@ Package installation and registration with the agent host are separate steps.
 | Kepler Formal | [Python-backed MCP + native wheels](kepler-formal/install.md) | SEC verification |
 | OpenROAD | [Nixpkgs package](openroad/install.md) | Physical design and reports |
 | NajaEDA | [Published Python wheel](najaeda/install.md) | Structural editing |
-| Naja-Scope | [Published Python wheel](naja-scope/install.md) | Read-only structural inspection through MCP |
+| Naja-Scope | [Published Python wheel, own environment](naja-scope/install.md) | Read-only structural inspection through MCP |
 
-Nix supplies OpenROAD and, optionally, Python. Kepler Formal, NajaEDA and
-Naja-Scope use published wheels in a shared project-local virtual environment.
+Nix supplies OpenROAD and, optionally, Python. Kepler Formal and NajaEDA use
+published wheels in one project-local virtual environment: Kepler verifies
+NajaEDA's live objects, so both need the same NajaEDA build. Naja-Scope runs as
+a separate file-based MCP server and has its own environment, with the NajaEDA
+release it requires.
 The pure-Python Kepler MCP wrapper is packaged from a pinned Git revision until
 upstream publishes a distribution. This is not a fully Nix-locked Python
 environment. No 22b source submodules or native source builds are used.
@@ -52,10 +55,14 @@ python -m pip install --only-binary=:all: -r tools/python-requirements.txt
 python -m pip install --no-deps -r tools/kepler-formal/mcp-requirements.txt
 python -m pip check
 python -m pip freeze > .venv/resolved-packages.txt
+# Naja-Scope's own environment, beside the first one:
+python3 -m venv .venv-scope
+.venv-scope/bin/python -m pip install --only-binary=:all: -r tools/naja-scope/requirements.txt
+.venv-scope/bin/python -m pip check
 ```
 
 An existing Python 3.13 interpreter with a compatible wheel can also create the
-venv. The requirement pins identify the tool releases, not every transitive
+venvs. The requirement pins identify the tool releases, not every transitive
 dependency; retain the resolved package list with each experiment.
 
 Package installation accesses public registries; design files do not need to

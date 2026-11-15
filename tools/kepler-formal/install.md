@@ -4,7 +4,7 @@
 to call the `kepler-formal` Python library. It no longer launches the Nix CLI
 or depends on `keplertech` Cachix for verification. OpenROAD still uses Nix.
 
-Use the [shared Python environment](../README.md). Check existing versions and
+Use the [editing environment](../README.md), shared with NajaEDA. Check existing versions and
 the MCP commit before installing; `kepler-formal-mcp==0.1.0` alone does not
 distinguish the new Python server from the older CLI wrapper.
 
@@ -26,8 +26,8 @@ For an existing MCP installation at a different Git revision, add
 Pip may otherwise retain the old revision because both use version `0.1.0`.
 Reuse an installation whose Git revision already matches the requirement.
 
-The native dependencies are published wheels: `kepler-formal==0.5.0` requires
-`najaeda==0.7.24`. Python 3.13 is used by the regression. If a compatible native
+The native dependencies are published wheels: `kepler-formal==1.0.0` requires
+`najaeda==0.7.33`. Python 3.13 is used by the regression. If a compatible native
 wheel is unavailable, stop; never compile Kepler or Naja as a fallback.
 
 The MCP wrapper has no published PyPI package at this pin. Its separate

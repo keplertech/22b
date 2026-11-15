@@ -85,6 +85,12 @@ class RepositoryTests(unittest.TestCase):
         requirements = (ROOT / "tools/python-requirements.txt").read_text().splitlines()
         self.assertEqual(set(requirements),
                          {f"{key}=={value}" for key, value in manifest["python_packages"].items()})
+        # Naja-Scope needs a newer NajaEDA than Kepler's exact pin: separate environments.
+        scope = manifest["naja_scope_packages"]
+        self.assertNotIn("naja-scope", manifest["python_packages"])
+        self.assertTrue({"naja-scope", "najaeda"} <= set(scope))
+        self.assertEqual(set((ROOT / "tools/naja-scope/requirements.txt").read_text().splitlines()),
+                         {f"{key}=={value}" for key, value in scope.items()})
 
 
 if __name__ == "__main__":

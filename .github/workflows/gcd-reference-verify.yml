@@ -65,7 +65,7 @@ jobs:
           cache=$(python -c 'import json; print(json.load(open("toolchain.json"))["openroad"]["cache"])')
           bash tools/install-cached-package.sh openroad "$openroad" "$cache" .cache/gcd-tools
           echo "$PWD/.cache/gcd-tools/openroad/bin" >> "$GITHUB_PATH"
-      - name: Install native Python wheels and pinned pure-Python Kepler MCP package
+      - name: Install native Python wheels, pinned Kepler MCP package and the separate Naja-Scope environment
         run: |
           mkdir -p .cache/agent-config-codex .cache/agent-config-claude
           python setup/mcp.py configure --client codex --project .cache/agent-config-codex \
@@ -73,6 +73,7 @@ jobs:
           python setup/mcp.py configure --client claude-code --project .cache/agent-config-claude \
             --venv .cache/gcd-python --apply | tee .cache/gcd-tools/setup-claude.log
           .cache/gcd-python/bin/python -m pip freeze > .cache/gcd-tools/python-packages.txt
+          .cache/gcd-python-scope/bin/python -m pip freeze > .cache/gcd-tools/naja-scope-packages.txt
           echo "$PWD/.cache/gcd-python/bin" >> "$GITHUB_PATH"
       - name: Agent MCP discovery and direct live-session verification
         run: |

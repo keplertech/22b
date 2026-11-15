@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.gcd_reference_regression import clean_env, save, scope_payload
+from scripts.gcd_reference_regression import clean_env, save, scope_payload, scope_python
 from scripts.live_session_regression import LIBERTY, FIRST, SECOND
 from tools.live_session import LiveDesignSession
 
@@ -22,7 +22,8 @@ async def run(work):
     source, library = work / "input.v", work / "cells.lib"
     source.write_text("module top(input a, output y); BUF g(.A(a), .Y(y)); endmodule\n")
     library.write_text(LIBERTY)
-    params = StdioServerParameters(command=sys.executable, args=["-m", "naja_scope.server"],
+    # Scope reads the exported files from its own environment, not from this kernel's.
+    params = StdioServerParameters(command=str(scope_python()), args=["-m", "naja_scope.server"],
                                   env=clean_env(), cwd=str(ROOT))
     with LiveDesignSession(source, [library], work / "session") as live:
         assert live.verify()["status"] == "proved"

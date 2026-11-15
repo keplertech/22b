@@ -45,6 +45,38 @@ def clean_env():
     return env
 
 
+def scope_python():
+    """Interpreter of the Naja-Scope environment, which has its own NajaEDA.
+
+    Naja-Scope only ever runs as a separate MCP server that loads files, so it
+    is installed beside this environment: `<venv>-scope`, or NAJA_SCOPE_PYTHON.
+    """
+    override = os.environ.get("NAJA_SCOPE_PYTHON")
+    prefix = Path(sys.prefix)
+    # Keep the venv's own executable path: resolving the symlink would leave it.
+    python = Path(override).expanduser().absolute() if override else (
+        prefix.with_name(prefix.name + "-scope")
+        / ("Scripts/python.exe" if os.name == "nt" else "bin/python"))
+    if not python.is_file():
+        raise ValueError(f"Naja-Scope environment not found at {python}; "
+                         "see tools/naja-scope/install.md")
+    return python
+
+
+def scope_identity(python, pins):
+    """Check the Naja-Scope pins in the environment its server runs from."""
+    code = ("import importlib.metadata as m, json, sys; "
+            "print(json.dumps({name: m.version(name) for name in sys.argv[1:]}))")
+    reply = subprocess.run([str(python), "-I", "-c", code, *pins], env=clean_env(),
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+    if reply.returncode != 0:
+        raise ValueError("Naja-Scope environment is not usable: " + reply.stderr.strip()[-300:])
+    versions = json.loads(reply.stdout)
+    if versions != pins:
+        raise ValueError(f"Naja-Scope packages do not match toolchain.json: {versions}")
+    return versions
+
+
 def run_command(directory, command, *, timeout, env=None, accept_nonzero=False):
     directory.mkdir()
     save(directory / "command.json", {"argv": [str(x) for x in command], "cwd": str(directory)})
@@ -129,6 +161,10 @@ def scope_payload(result):
     value = result.structuredContent
     if value is None:
         value = json.loads(next(c.text for c in result.content if c.type == "text"))
+    # Naja-Scope 0.1.25+ publishes structured output, which the MCP SDK wraps
+    # as {"result": payload}; earlier releases return the payload itself.
+    if isinstance(value, dict) and set(value) == {"result"} and isinstance(value["result"], dict):
+        value = value["result"]
     if not isinstance(value, dict) or "error" in value:
         raise ValueError(f"Naja-Scope error: {value}")
     return value
@@ -145,12 +181,12 @@ def validate_scope_query(name, value):
             raise ValueError(f"Naja-Scope returned no {kind} for the reference boundary")
 
 
-async def inspect_scope(directory, design, liberty):
+async def inspect_scope(directory, design, liberty, python):
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
     directory.mkdir()
-    params = StdioServerParameters(command=sys.executable,
+    params = StdioServerParameters(command=str(python),
                                   args=["-m", "naja_scope.server"], env=clean_env())
     with (directory / "server.log").open("w") as log:
         async with stdio_client(params, errlog=log) as streams:
@@ -179,6 +215,7 @@ def input_hashes():
     return {str(path.relative_to(ROOT)): digest(path) for path in
             (EXAMPLE / "input.v", EXAMPLE / "constraints.sdc", REFERENCE / "edit.py",
              PLATFORM / "run.tcl", ROOT / "toolchain.json", ROOT / "tools/python-requirements.txt",
+             ROOT / "tools/naja-scope/requirements.txt",
              ROOT / "tools/kepler-formal/verify.py", ROOT / "tools/kepler-formal/mcp-requirements.txt")}
 
 
@@ -194,6 +231,8 @@ def prepare(work, fixture):
     run_command(work / "openroad-version", [tools["openroad"], "-version"], timeout=30)
     version = (work / "openroad-version/tool.log").read_text()
     require_openroad_revision(version, pins["openroad"]["source_revision"])
+    tools["naja_scope_python"] = str(scope_python())
+    scope_packages = scope_identity(tools["naja_scope_python"], pins["naja_scope_packages"])
     save(work / "kepler-packages.json", SEC.package_identity())
     spec = importlib.util.spec_from_file_location("gcd_fixture", PLATFORM / "fetch_fixture.py")
     module = importlib.util.module_from_spec(spec)
@@ -210,7 +249,7 @@ def prepare(work, fixture):
                 "fixture_manifest_sha256": digest(fixture / "manifest.json"),
                 "tools": tools, "openroad_version": version.strip(),
                 "python": sys.version, "python_packages": packages,
-                "toolchain": pins}
+                "naja_scope_packages": scope_packages, "toolchain": pins}
     save(work / "metadata.json", metadata)
     return metadata
 
@@ -255,7 +294,9 @@ def stage(name, work, fixture, timeout):
                     timeout=timeout, env=env)
         save(directory / "summary.json", physical_summary(directory))
     elif name == "inspect":
-        asyncio.run(asyncio.wait_for(inspect_scope(directory, design, liberty), timeout=timeout))
+        asyncio.run(asyncio.wait_for(
+            inspect_scope(directory, design, liberty, metadata["tools"]["naja_scope_python"]),
+            timeout=timeout))
     elif name == "edit":
         ast.parse((REFERENCE / "edit.py").read_text())
         run_command(directory, [sys.executable, str(REFERENCE / "edit.py"), "--liberty", str(liberty),

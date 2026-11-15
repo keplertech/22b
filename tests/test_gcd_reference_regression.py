@@ -75,6 +75,66 @@ class ReferenceTests(unittest.TestCase):
                 REPLAY.prepare(self.work / "new", self.work / "fixture")
         fetch_loader.assert_not_called()
 
+    def test_prepare_rejects_wrong_scope_environment_before_downloading_fixture(self):
+        pins = json.loads((ROOT / "toolchain.json").read_text())
+        revision = pins["openroad"]["source_revision"]
+
+        def version_run(directory, command, **kwargs):
+            directory.mkdir()
+            (directory / "tool.log").write_text(f"2.0_{revision}\n")
+
+        with patch.object(REPLAY.importlib.metadata, "version", side_effect=pins["python_packages"].get), \
+             patch.object(REPLAY.shutil, "which", return_value="/tools/openroad"), \
+             patch.object(REPLAY, "run_command", side_effect=version_run), \
+             patch.object(REPLAY, "scope_python", return_value=Path("/scope/bin/python")), \
+             patch.object(REPLAY.subprocess, "run", return_value=subprocess.CompletedProcess(
+                 [], 0, json.dumps(dict(pins["naja_scope_packages"], najaeda="0.0.0")), "")) as run, \
+             patch.object(REPLAY.importlib.util, "spec_from_file_location") as fetch_loader:
+            with self.assertRaisesRegex(ValueError, "Naja-Scope packages do not match"):
+                REPLAY.prepare(self.work / "new", self.work / "fixture")
+        # The pins are read in the Scope interpreter, never in this one.
+        self.assertEqual(run.call_args.args[0][0], "/scope/bin/python")
+        self.assertEqual(run.call_args.args[0][-len(pins["naja_scope_packages"]):],
+                         list(pins["naja_scope_packages"]))
+        fetch_loader.assert_not_called()
+
+    def test_scope_identity_accepts_only_the_pinned_environment(self):
+        pins = {"naja-scope": "1.2.3", "najaeda": "4.5.6"}
+        for code, stdout, message in ((0, json.dumps(pins), None),
+                                      (0, json.dumps(dict(pins, najaeda="4.5.7")), "do not match"),
+                                      (1, "", "not usable")):
+            reply = subprocess.CompletedProcess([], code, stdout, "No package metadata was found")
+            with self.subTest(code=code, stdout=stdout), patch.object(REPLAY.subprocess, "run", return_value=reply):
+                if message is None:
+                    self.assertEqual(REPLAY.scope_identity("/scope/python", pins), pins)
+                else:
+                    with self.assertRaisesRegex(ValueError, message):
+                        REPLAY.scope_identity("/scope/python", pins)
+
+    def test_scope_interpreter_is_beside_the_editing_venv_or_explicit(self):
+        executable = "Scripts/python.exe" if REPLAY.os.name == "nt" else "bin/python"
+        beside = self.work / "env-scope" / executable
+        explicit = self.work / "elsewhere" / executable
+        setup_spec = importlib.util.spec_from_file_location("mcp_setup", ROOT / "setup/mcp.py")
+        setup = importlib.util.module_from_spec(setup_spec)
+        setup_spec.loader.exec_module(setup)
+        # The installer creates the environment where the regressions look for it.
+        self.assertEqual(setup.python_in(setup.scope_directory(self.work / "env")), beside)
+        with patch.object(REPLAY.sys, "prefix", str(self.work / "env")), \
+             patch.dict(REPLAY.os.environ, clear=False) as environment:
+            environment.pop("NAJA_SCOPE_PYTHON", None)
+            with self.assertRaisesRegex(ValueError, "tools/naja-scope/install.md"):
+                REPLAY.scope_python()
+            for path in (beside, explicit):
+                path.parent.mkdir(parents=True)
+                path.touch()
+            self.assertEqual(REPLAY.scope_python(), beside)
+            environment["NAJA_SCOPE_PYTHON"] = str(explicit)
+            self.assertEqual(REPLAY.scope_python(), explicit)
+            environment["NAJA_SCOPE_PYTHON"] = str(self.work / "missing")
+            with self.assertRaisesRegex(ValueError, "not found"):
+                REPLAY.scope_python()
+
     def test_tool_failure_prints_bounded_tail_and_preserves_full_log(self):
         captured = io.StringIO()
         command = [sys.executable, "-c",
@@ -283,9 +343,21 @@ set ::post_route_area_m2 2.696217e-9
             REPLAY.validate_inputs(self.work, metadata)
 
     def test_scope_errors_rejected_even_in_successful_mcp_envelopes(self):
-        for error, value in ((True, {}), (False, {"error": "not found"})):
-            with self.assertRaises(ValueError):
+        for error, value in ((True, {}), (False, {"error": "not found"}),
+                             (False, {"result": {"error": "not found"}})):
+            with self.subTest(value=value), self.assertRaises(ValueError):
                 REPLAY.scope_payload(SimpleNamespace(isError=error, structuredContent=value))
+
+    def test_scope_payload_is_the_same_with_or_without_the_result_wrapper(self):
+        payload = {"loaded": True, "top": {"name": "gcd"}}
+        text = SimpleNamespace(type="text", text=json.dumps({"result": payload}))
+        for response in (SimpleNamespace(isError=False, structuredContent=payload),
+                         SimpleNamespace(isError=False, structuredContent={"result": payload}),
+                         SimpleNamespace(isError=False, structuredContent=None, content=[text])):
+            self.assertEqual(REPLAY.scope_payload(response), payload)
+        # A payload that merely has a result field among others is left alone.
+        mixed = {"result": {"loaded": True}, "count": 1}
+        self.assertEqual(REPLAY.scope_payload(SimpleNamespace(isError=False, structuredContent=mixed)), mixed)
 
     def test_scope_requires_correct_top_and_complete_boundary_results(self):
         REPLAY.validate_scope_query("status", {"loaded": True, "top": {"name": "gcd"}})

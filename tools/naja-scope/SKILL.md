@@ -9,7 +9,8 @@ Use the [package guide](install.md). Discover the installed typed-tool schemas,
 then load Liberty and Verilog with `load_liberty` and `load_verilog`. Confirm the
 top and loaded design with `status` before querying.
 
-The pinned MCP server owns a separate loaded copy, not the live editing
+The pinned MCP server runs from its own environment, with its own NajaEDA
+release, and owns a separate loaded copy, not the live editing
 candidate. Load original files once for baseline analysis. For a persistent
 NajaEDA session, use [inspection checkpoints](checkpoints.md): export on demand,
 record which revision Scope loaded, and check freshness before using its answers
