@@ -416,7 +416,7 @@ set ::post_route_area_m2 2.696217e-9
         self.assertTrue((example / "reference/historical-results.json").is_file())
         task = (example / "task.md").read_text()
         self.assertIn("flow/backend/SKILL.md", task)
-        for leaked in ("_215_", "_219_", "generate/propagate", "prefix", "31-gate", "0.5998"):
+        for leaked in ("_215_", "_219_", "generate/propagate", "prefix", "31-gate", "23-gate", "0.5998"):
             self.assertNotIn(leaked, task)
 
 

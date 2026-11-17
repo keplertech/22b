@@ -28,45 +28,49 @@ def edit(top):
     for i in range(1, len(instances)):
         assert instances[i].get_term('C').get_upper_net() == wires[f'x{i-1}']
 
+    # Carry out of bit i: x_i = g_i | p_i & x_(i-1), with g = a & b, p = a | b and x_(-1) = c0.
+    # All inputs arrive together, so the carry-in is folded into bit 0 and the terms form a
+    # balanced tree. A name starting with n is an inverted term: gates alternate polarity,
+    # so every level is a single-stage cell. Rows: cell, output, output pin, inputs.
     rows = [
-        ('sky130_fd_sc_hd__and2_1', 'g0', 'a0', 'b0', '-', '-', '-'),
-        ('sky130_fd_sc_hd__or2_1', 'p0', 'a0', 'b0', '-', '-', '-'),
-        ('sky130_fd_sc_hd__and2_1', 'g1', 'a1', 'b1', '-', '-', '-'),
-        ('sky130_fd_sc_hd__or2_1', 'p1', 'a1', 'b1', '-', '-', '-'),
-        ('sky130_fd_sc_hd__and2_1', 'g2', 'a2', 'b2', '-', '-', '-'),
-        ('sky130_fd_sc_hd__or2_1', 'p2', 'a2', 'b2', '-', '-', '-'),
-        ('sky130_fd_sc_hd__and2_1', 'g3', 'a3', 'b3', '-', '-', '-'),
-        ('sky130_fd_sc_hd__or2_1', 'p3', 'a3', 'b3', '-', '-', '-'),
-        ('sky130_fd_sc_hd__and2_1', 'g4', 'a4', 'b4', '-', '-', '-'),
-        ('sky130_fd_sc_hd__or2_1', 'p4', 'a4', 'b4', '-', '-', '-'),
-        ('sky130_fd_sc_hd__a21o_1', 'g11', '-', '-', 'p1', 'g0', 'g1'),
-        ('sky130_fd_sc_hd__and2_1', 'p11', 'p1', 'p0', '-', '-', '-'),
-        ('sky130_fd_sc_hd__a21o_1', 'g21', '-', '-', 'p2', 'g1', 'g2'),
-        ('sky130_fd_sc_hd__and2_1', 'p21', 'p2', 'p1', '-', '-', '-'),
-        ('sky130_fd_sc_hd__a21o_1', 'g31', '-', '-', 'p3', 'g2', 'g3'),
-        ('sky130_fd_sc_hd__and2_1', 'p31', 'p3', 'p2', '-', '-', '-'),
-        ('sky130_fd_sc_hd__a21o_1', 'g41', '-', '-', 'p4', 'g3', 'g4'),
-        ('sky130_fd_sc_hd__and2_1', 'p41', 'p4', 'p3', '-', '-', '-'),
-        ('sky130_fd_sc_hd__a21o_1', 'g22', '-', '-', 'p21', 'g0', 'g21'),
-        ('sky130_fd_sc_hd__and2_1', 'p22', 'p21', 'p0', '-', '-', '-'),
-        ('sky130_fd_sc_hd__a21o_1', 'g32', '-', '-', 'p31', 'g11', 'g31'),
-        ('sky130_fd_sc_hd__and2_1', 'p32', 'p31', 'p11', '-', '-', '-'),
-        ('sky130_fd_sc_hd__a21o_1', 'g42', '-', '-', 'p41', 'g21', 'g41'),
-        ('sky130_fd_sc_hd__and2_1', 'p42', 'p41', 'p21', '-', '-', '-'),
-        ('sky130_fd_sc_hd__a21o_1', 'g44', '-', '-', 'p42', 'g0', 'g42'),
-        ('sky130_fd_sc_hd__and2_1', 'p44', 'p42', 'p0', '-', '-', '-'),
-        ('sky130_fd_sc_hd__a21o_1', 'x0', '-', '-', 'p0', 'c0', 'g0'),
-        ('sky130_fd_sc_hd__a21o_1', 'x1', '-', '-', 'p11', 'c0', 'g11'),
-        ('sky130_fd_sc_hd__a21o_1', 'x2', '-', '-', 'p22', 'c0', 'g22'),
-        ('sky130_fd_sc_hd__a21o_1', 'x3', '-', '-', 'p32', 'c0', 'g32'),
-        ('sky130_fd_sc_hd__a21o_1', 'x4', '-', '-', 'p44', 'c0', 'g44'),
+        # Bit 0 takes the carry-in: nx0 = !(g0 | p0 & c0).
+        ('sky130_fd_sc_hd__and2_1', 'g0', 'X', {'A': 'a0', 'B': 'b0'}),
+        ('sky130_fd_sc_hd__or2_1', 'p0', 'X', {'A': 'a0', 'B': 'b0'}),
+        ('sky130_fd_sc_hd__a21oi_1', 'nx0', 'Y', {'A1': 'p0', 'A2': 'c0', 'B1': 'g0'}),
+        ('sky130_fd_sc_hd__inv_1', 'x0', 'Y', {'A': 'nx0'}),
+        # Inverted generate and propagate of bits 1 to 4.
+        ('sky130_fd_sc_hd__nand2_1', 'ng1', 'Y', {'A': 'a1', 'B': 'b1'}),
+        ('sky130_fd_sc_hd__nor2_1', 'np1', 'Y', {'A': 'a1', 'B': 'b1'}),
+        ('sky130_fd_sc_hd__nand2_1', 'ng2', 'Y', {'A': 'a2', 'B': 'b2'}),
+        ('sky130_fd_sc_hd__nor2_1', 'np2', 'Y', {'A': 'a2', 'B': 'b2'}),
+        ('sky130_fd_sc_hd__nand2_1', 'ng3', 'Y', {'A': 'a3', 'B': 'b3'}),
+        ('sky130_fd_sc_hd__nor2_1', 'np3', 'Y', {'A': 'a3', 'B': 'b3'}),
+        ('sky130_fd_sc_hd__nand2_1', 'ng4', 'Y', {'A': 'a4', 'B': 'b4'}),
+        ('sky130_fd_sc_hd__nor2_1', 'np4', 'Y', {'A': 'a4', 'B': 'b4'}),
+        # Pairs of bits: G = g_hi | p_hi & g_lo and P = p_hi & p_lo.
+        ('sky130_fd_sc_hd__o21ai_1', 'G21', 'Y', {'A1': 'np2', 'A2': 'ng1', 'B1': 'ng2'}),
+        ('sky130_fd_sc_hd__nor2_1', 'P21', 'Y', {'A': 'np2', 'B': 'np1'}),
+        ('sky130_fd_sc_hd__o21ai_1', 'G43', 'Y', {'A1': 'np4', 'A2': 'ng3', 'B1': 'ng4'}),
+        ('sky130_fd_sc_hd__nor2_1', 'P43', 'Y', {'A': 'np4', 'B': 'np3'}),
+        # Bits 1 to 4 as one group, inverted.
+        ('sky130_fd_sc_hd__a21oi_1', 'nG41', 'Y', {'A1': 'P43', 'A2': 'G21', 'B1': 'G43'}),
+        ('sky130_fd_sc_hd__nand2_1', 'nP41', 'Y', {'A': 'P43', 'B': 'P21'}),
+        # The carries, on the original nets.
+        ('sky130_fd_sc_hd__o21ai_1', 'x1', 'Y', {'A1': 'np1', 'A2': 'nx0', 'B1': 'ng1'}),
+        ('sky130_fd_sc_hd__a21oi_1', 'nx2', 'Y', {'A1': 'P21', 'A2': 'x0', 'B1': 'G21'}),
+        ('sky130_fd_sc_hd__inv_1', 'x2', 'Y', {'A': 'nx2'}),
+        ('sky130_fd_sc_hd__o21ai_1', 'x3', 'Y', {'A1': 'np3', 'A2': 'nx2', 'B1': 'ng3'}),
+        ('sky130_fd_sc_hd__o21ai_1', 'x4', 'Y', {'A1': 'nP41', 'A2': 'nx0', 'B1': 'nG41'}),
     ]
 
     # Validate every new name before mutating the candidate. Verilog keeps a
     # module's instances, nets and ports in one name space, which NajaEDA does
     # not enforce: a new gate and the net it drives get different names, and
-    # each must be unused by all three kinds.
-    for _, output_key, *_ in rows:
+    # each must be unused by all three kinds. A row reads earlier rows only.
+    driven = set(key for key in wires if key[0] != 'x')
+    for _, output_key, _, inputs in rows:
+        assert all(key in driven for key in inputs.values()), f'Term read before it is driven: {output_key}'
+        driven.add(output_key)
         instance_name = f'ppa_cla_{output_key}'
         new_names = [instance_name] if output_key in wires else [instance_name, f'{instance_name}_net']
         for name in new_names:
@@ -74,15 +78,14 @@ def edit(top):
             assert top.get_net(name) is None, f'Net already exists: {name}'
             assert top.get_term(name) is None, f'Port already exists: {name}'
 
-    for model, output_key, *inputs in rows:
+    for model, output_key, output_pin, inputs in rows:
         instance_name = f'ppa_cla_{output_key}'
         if output_key not in wires:
             wires[output_key] = create_net(top, f'{instance_name}_net')
         new_inst = top.create_child_instance(model=model, name=instance_name)
-        for pin_name, input_key in zip(['A', 'B', 'A1', 'A2', 'B1'], inputs):
-            if input_key != '-':
-                connect_term(new_inst.get_term(pin_name), wires[input_key])
-        connect_term(new_inst.get_term('X'), wires[output_key])
+        for pin_name, input_key in inputs.items():
+            connect_term(new_inst.get_term(pin_name), wires[input_key])
+        connect_term(new_inst.get_term(output_pin), wires[output_key])
 
     for inst in instances:
         inst.delete()
@@ -109,6 +112,6 @@ if __name__ == '__main__':
     edit(top)
     after = len(list(top.get_leaf_children()))
     top.dump_verilog(a.output)
-    print(f'NAJA_EDIT: replaced 5 majority gates with 31 prefix-network gates; {before} -> {after} leaf instances')
+    print(f'NAJA_EDIT: replaced 5 majority gates with 23 prefix-network gates; {before} -> {after} leaf instances')
     print('NAJA_EDIT: existing boundary nets reused; registers unchanged')
     print(f'OUTPUT={a.output}')
