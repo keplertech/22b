@@ -17,15 +17,18 @@ DOCS = [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "SKILL.md",
 
 
 class RepositoryTests(unittest.TestCase):
-    def test_demo_uses_inline_video_attachment(self):
+    def test_demo_plays_the_video_kept_in_the_repository(self):
+        # GitHub embeds a player only for a copy uploaded through its website, and that
+        # copy goes stale when the video changes. The preview picture links to the file
+        # in the repository instead, so every branch shows its own video.
         readme = (ROOT / "README.md").read_text()
         demo = readme.split("## Demo\n", 1)[1].split("\n## ", 1)[0]
-        self.assertRegex(
-            demo,
-            r"(?m)^https://github\.com/user-attachments/assets/"
-            r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
-        )
+        media = "examples/backend/gcd/reference/media"
+        self.assertRegex(demo, rf"(?m)^\[!\[[^\]]+\]\({media}/demo-preview\.jpg\)\]\({media}/demo\.mp4\)$")
+        self.assertNotIn("user-attachments", demo)
         self.assertNotIn("](examples/backend/gcd/media/demo.mp4)", demo)
+        with (ROOT / media / "demo-preview.jpg").open("rb") as stream:
+            self.assertEqual(stream.read(3), b"\xff\xd8\xff")
 
     def test_demo_has_repository_download_fallback(self):
         readme = (ROOT / "README.md").read_text()
