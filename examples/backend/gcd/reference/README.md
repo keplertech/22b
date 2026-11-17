@@ -112,10 +112,16 @@ without this directory in its initial context.
 python -m py_compile "$EXAMPLE/reference/edit.py"
 python "$EXAMPLE/reference/edit.py" --liberty "$LIBERTY" \
   --input "$EXAMPLE/input.v" --output "$RUN/candidate.v" | tee "$RUN/edit.log"
+python tools/edit_validation.py --liberty "$LIBERTY" --verilog "$RUN/candidate.v"
 ```
 
 The script refuses an existing output file and checks the original carry chain
 before editing. Run without Python's `-O` flag, which disables its assertions.
+Each new gate is `ppa_cla_<term>` and the new net it drives `ppa_cla_<term>_net`.
+Verilog allows no instance with the name of a net. NajaEDA, Kepler Formal and
+OpenROAD accept one, but OpenROAD then times the design without the extracted
+parasitics of those nets. The second command checks the exported file; the
+automated replay runs it as part of the edit stage.
 Input hashes and the 2,048-case Boolean truth table are checked by the offline
 tests; those checks do not replace SEC of the exported candidate.
 
@@ -184,6 +190,13 @@ That recorded run proved all 18/18 observed outputs at k=5 under Kepler's
 dual-rail steady-state abstraction. Setup improved by about 600 ps, but the
 positive margin was only 0.132 ps. Power used the same default activity
 assumptions and this is a typical-corner demonstration, not multi-corner signoff.
+
+That run used the earlier edit, in which each new net had the name of the gate
+driving it. In the packaged flow such names make OpenROAD drop the extracted
+parasitics of those nets when it reads the SPEF back (`pin ... not found`) and
+report about 0.1 ns more setup slack than the same layout has. The historical
+image was not rerun: treat its candidate slack as unverified and probably
+optimistic.
 
 The full source revision and image are recorded in
 [historical-results.json](historical-results.json). A new tool package requires

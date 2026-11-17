@@ -115,6 +115,10 @@ def physical_summary(directory):
     for marker in ("GCD_COMPLETE=1", "GCD_ROUTED=1", "GCD_FINAL_DRC=0"):
         if not re.search(r"(?m)^" + re.escape(marker) + r"\s*$", log):
             raise ValueError(f"Missing {marker}: {directory}")
+    # Extracted parasitics that could not be attached leave the reported timing optimistic.
+    lost = re.findall(r"(?m)^\[WARNING STA-\d+\] \S+ line \d+, (?:pin|net|instance) \S+ not found\.?\s*$", log)
+    if lost:
+        raise ValueError(f"{len(lost)} parasitics were not annotated ({lost[0].strip()}): {directory}")
     for name in REPORTS:
         path = directory / "reports" / (name + ".rpt")
         # A violations-only report can be empty when the checks are clean.
@@ -215,7 +219,7 @@ def input_hashes():
     return {str(path.relative_to(ROOT)): digest(path) for path in
             (EXAMPLE / "input.v", EXAMPLE / "constraints.sdc", REFERENCE / "edit.py",
              PLATFORM / "run.tcl", ROOT / "toolchain.json", ROOT / "tools/python-requirements.txt",
-             ROOT / "tools/naja-scope/requirements.txt",
+             ROOT / "tools/naja-scope/requirements.txt", ROOT / "tools/edit_validation.py",
              ROOT / "tools/kepler-formal/verify.py", ROOT / "tools/kepler-formal/mcp-requirements.txt")}
 
 
@@ -303,6 +307,10 @@ def stage(name, work, fixture, timeout):
                                 "--input", str(design), "--output", str(work / "candidate.v")], timeout=timeout)
         if not (work / "candidate.v").is_file():
             raise ValueError("Edit did not export a candidate")
+        # An instance named like a net is not valid Verilog: SEC passes it, OpenROAD mis-times it.
+        run_command(work / "edit-names", [sys.executable, str(ROOT / "tools/edit_validation.py"),
+                                          "--liberty", str(liberty), "--verilog", str(work / "candidate.v")],
+                    timeout=timeout)
         metadata["candidate_sha256"] = digest(work / "candidate.v")
     elif name == "proof":
         summary = SEC.run_sec(directory, design, work / "candidate.v", [liberty], timeout=timeout)

@@ -59,12 +59,16 @@ class Top:
             pins["C"] = Pin(self.nets["c0" if i == 0 else f"x{i-1}"])
             self.gates[f"_{215+i}_"] = Gate("sky130_fd_sc_hd__maj3_2", pins)
         self.side_loads = [Pin(self.nets[f"x{i}"]) for i in range(5)]
+        self.ports = {}
 
     def get_child_instance(self, name):
         return self.gates.get(name)
 
     def get_net(self, name):
         return self.nets.get(name)
+
+    def get_term(self, name):
+        return self.ports.get(name)
 
     def create_net(self, name):
         if name in self.nets:
@@ -124,12 +128,26 @@ class GcdTests(unittest.TestCase):
         self.assertEqual(len(top.gates), 5)
         self.assertFalse(any(gate.deleted for gate in top.gates.values()))
 
-    def test_name_collision_is_rejected_before_mutation(self):
+    def test_new_gates_and_nets_never_share_a_name(self):
         top = Top()
-        top.nets["ppa_cla_g44"] = object()
-        with self.assertRaises(AssertionError):
-            EDIT["edit"](top)
-        self.assertEqual(len(top.gates), 5)
+        before = set(top.nets)
+        EDIT["edit"](top)
+        created = set(top.nets) - before
+        # 31 gates drive the 5 original boundary nets and 26 new ones.
+        self.assertEqual(len(created), 26)
+        self.assertFalse(created & set(top.gates))
+
+    def test_name_collision_is_rejected_before_mutation(self):
+        # One Verilog name space: a new name must be unused by nets, instances and ports alike.
+        for kind in ("nets", "gates", "ports"):
+            for name in ("ppa_cla_g44", "ppa_cla_g44_net", "ppa_cla_x4"):
+                top = Top()
+                getattr(top, kind)[name] = object()
+                with self.subTest(kind=kind, name=name):
+                    with self.assertRaises(AssertionError):
+                        EDIT["edit"](top)
+                    self.assertEqual(len(top.gates), 5 + (kind == "gates"))
+                    self.assertEqual(len(top.nets), 16 + (kind == "nets"))
 
     def test_missing_target_rejected(self):
         top = Top()

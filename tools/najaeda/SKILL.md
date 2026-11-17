@@ -39,6 +39,20 @@ run [Kepler SEC](../kepler-formal/SKILL.md); cell-count changes are diagnostics,
 not a correctness proof. Detect internal-net/port naming collisions when signals
 have been disconnected; Verilog names in one module can re-alias separate objects.
 
+Never give an instance the name of a net or port of the same module, or the
+reverse. Verilog keeps all three in one name space; NajaEDA keeps them apart,
+so it creates and exports such a pair without complaint. NajaEDA, Kepler Formal
+and OpenROAD read that file back, so SEC and the physical flow still pass.
+The file is not valid Verilog, though: strict readers such as Verilator and
+Yosys reject it, and OpenROAD loses the extracted parasitics of those nets and
+reports better timing than the layout has. A persistent session refuses an
+edit that adds such a pair. In the file-based flow, check every exported
+candidate before SEC:
+
+```sh
+python tools/edit_validation.py --liberty /absolute/cells.lib --verilog /absolute/candidate.v
+```
+
 The [GCD reference script](../../examples/backend/gcd/reference/edit.py) is a
 design-specific worked solution, not a generic optimization pass. Read it only
 for explicit replay or comparison, not when solving the GCD task independently.

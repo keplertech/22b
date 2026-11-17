@@ -171,6 +171,17 @@ class ReferenceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 REPLAY.physical_summary(self.work)
 
+    def test_parasitics_that_were_not_annotated_fail(self):
+        self.physical_fixture()
+        with (self.work / "tool.log").open("a") as log:
+            log.write("[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported.\n")
+        REPLAY.physical_summary(self.work)
+        # What an instance named like a net causes: its wires are missing from the timing.
+        with (self.work / "tool.log").open("a") as log:
+            log.write("[WARNING STA-1652] /flow/results/gcd.spef line 11906, pin ppa_cla_p4 not found.\n")
+        with self.assertRaisesRegex(ValueError, "1 parasitics were not annotated"):
+            REPLAY.physical_summary(self.work)
+
     def test_clean_electrical_report_may_be_empty_but_must_exist(self):
         self.physical_fixture()
         path = self.work / "reports/electrical.rpt"
@@ -322,6 +333,34 @@ set ::post_route_area_m2 2.696217e-9
         with self.assertRaisesRegex(ValueError, "successful earlier stages"), patch.object(REPLAY, "run_command") as run:
             REPLAY.stage("candidate", self.work, self.work / "fixture", 10)
         run.assert_not_called()
+
+    def test_edit_stage_checks_names_in_the_exported_candidate(self):
+        fixture = self.work / "fixture"
+        for names_ok in (False, True):
+            (self.work / "metadata.json").write_text(json.dumps(
+                {"completed": ["prepare", "baseline", "inspect"], "fixture": str(fixture)}))
+            commands = []
+
+            def run(directory, command, **kwargs):
+                commands.append([str(item) for item in command])
+                if len(commands) == 1:
+                    (self.work / "candidate.v").write_text("module gcd(); endmodule\n")
+                elif not names_ok:
+                    raise RuntimeError("Tool exited 1")
+
+            with self.subTest(names_ok=names_ok), patch.object(REPLAY, "validate_inputs"), \
+                 patch.object(REPLAY, "run_command", side_effect=run), patch("builtins.print"):
+                if names_ok:
+                    REPLAY.stage("edit", self.work, fixture, 10)
+                else:
+                    with self.assertRaises(RuntimeError):
+                        REPLAY.stage("edit", self.work, fixture, 10)
+                self.assertEqual(commands[0][1], str(REPLAY.REFERENCE / "edit.py"))
+                self.assertEqual(commands[1][1:], [
+                    str(ROOT / "tools/edit_validation.py"), "--liberty",
+                    str(fixture / "test/sky130hd/sky130hd_tt.lib"), "--verilog", str(self.work / "candidate.v")])
+                completed = json.loads((self.work / "metadata.json").read_text())["completed"]
+                self.assertEqual("edit" in completed, names_ok)
 
     def test_changed_candidate_after_proof_is_rejected(self):
         inputs = self.work / "inputs"

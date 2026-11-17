@@ -62,17 +62,22 @@ def edit(top):
         ('sky130_fd_sc_hd__a21o_1', 'x4', '-', '-', 'p44', 'c0', 'g44'),
     ]
 
-    # Validate every new name before mutating the candidate.
+    # Validate every new name before mutating the candidate. Verilog keeps a
+    # module's instances, nets and ports in one name space, which NajaEDA does
+    # not enforce: a new gate and the net it drives get different names, and
+    # each must be unused by all three kinds.
     for _, output_key, *_ in rows:
-        name = f'ppa_cla_{output_key}'
-        assert top.get_child_instance(name) is None, f'Instance already exists: {name}'
-        if output_key not in wires:
+        instance_name = f'ppa_cla_{output_key}'
+        new_names = [instance_name] if output_key in wires else [instance_name, f'{instance_name}_net']
+        for name in new_names:
+            assert top.get_child_instance(name) is None, f'Instance already exists: {name}'
             assert top.get_net(name) is None, f'Net already exists: {name}'
+            assert top.get_term(name) is None, f'Port already exists: {name}'
 
     for model, output_key, *inputs in rows:
         instance_name = f'ppa_cla_{output_key}'
         if output_key not in wires:
-            wires[output_key] = create_net(top, instance_name)
+            wires[output_key] = create_net(top, f'{instance_name}_net')
         new_inst = top.create_child_instance(model=model, name=instance_name)
         for pin_name, input_key in zip(['A', 'B', 'A1', 'A2', 'B1'], inputs):
             if input_key != '-':

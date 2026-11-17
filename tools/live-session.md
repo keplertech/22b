@@ -122,13 +122,18 @@ still perform no exports. Inspection of a rejected candidate is diagnostic only.
 | `proved` | Full SEC proof for the current cumulative revision |
 | `unproven` | Partial/inconclusive proof with actual coverage; warning, not equivalence |
 | `rejected` | Counterexample or verification error; no valid proof |
-| `edit_error` | Script raised; partial candidate changes remain, no valid proof |
+| `edit_error` | Script raised or left an instance named like a net or port; partial candidate changes remain, no valid proof |
 | `verification_pending` | Timed-out verification may still be running; no edits allowed |
 | `invalid` | Golden/untracked candidate/universe changed; stop this session |
 
 A rejected script that never executes leaves the existing revision and proof
 intact. An execution error or counterexample does not roll back the candidate:
 inspect the error and repair that same cumulative candidate through `apply_edit`.
+An edit that gives an instance the name of a net or port of its module, or the
+reverse, is such an error: Verilog has one name space per module, so the later
+export would not be valid. SEC is not run; rename one of the pair with
+`set_name` in the next edit. Names the loaded design already shared are not
+reported.
 After a verification timeout, wait until the native call is idle and explicitly
 call `session.verify()` before editing again. Never treat a timeout as a warning
 proof. Do not forcibly destroy designs while native verification is running.

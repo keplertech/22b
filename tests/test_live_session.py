@@ -11,11 +11,23 @@ import unittest
 from unittest.mock import Mock, patch
 
 from tools import live_session as live
-from tools.edit_validation import editing_function, validate_script
+from tools.edit_validation import editing_function, explain_shared_names, shared_names, validate_script
 from test_gcd_reference_regression import proof_result
 
 GOLDEN_REF = dict(session_id="fixture-session", db_id=2, library_id=1, design_id=0)
 CANDIDATE_REF = dict(session_id="fixture-session", db_id=1, library_id=1, design_id=0)
+
+
+def design(name, model=None, instances=(), nets=(), ports=()):
+    """A design, or an instance of one, with only what the name check reads."""
+    item = Mock()
+    item.get_name.return_value = name
+    item.get_model_name.return_value = model or name
+    item.get_child_instances.return_value = list(instances)
+    item.get_nets.return_value = [Mock(**{"get_name.return_value": net}) for net in nets]
+    item.get_terms.return_value = [Mock(**{"get_name.return_value": port}) for port in ports]
+    item.is_leaf.return_value = not instances
+    return item
 
 
 def attached_result(status="equivalent", proven=18):
@@ -59,6 +71,29 @@ def edit(top):
         with self.assertRaises(ValueError):
             validate_script(" " * (1024 * 1024 + 1))
 
+    def test_shared_names_are_instances_named_like_a_net_or_port(self):
+        gates = [design(name, "BUF") for name in ("g", "n1", "a", "")]
+        top = design("top", instances=gates, nets=["a", "n1", "n2", ""], ports=["a", "clk"])
+        self.assertEqual(shared_names(top), {("top", "n1"), ("top", "a")})
+        # A port and its net have one name in every design: that is not a clash.
+        clean = design("top", instances=[design("g", "BUF")], nets=["a"], ports=["a"])
+        self.assertEqual(shared_names(clean), set())
+
+    def test_shared_names_cover_each_lower_module_once(self):
+        def block(instance):
+            return design(instance, "block", instances=[design("x", "BUF")], nets=["x"])
+        first, second = block("u1"), block("u2")
+        found = shared_names(design("top", instances=[first, second], nets=["w"]))
+        self.assertEqual(found, {("block", "x")})
+        self.assertEqual(first.get_nets.call_count + second.get_nets.call_count, 1)
+        self.assertIn("x (module block)", explain_shared_names(found))
+        self.assertIn("and 3 more", explain_shared_names({("top", f"n{index}") for index in range(11)}))
+
+    def test_a_shared_name_can_be_repaired_by_renaming(self):
+        top = Mock()
+        editing_function('def edit(top):\n    top.get_net("g").set_name("g_net")\n')(top)
+        top.get_net.return_value.set_name.assert_called_once_with("g_net")
+
 
 class SessionTests(unittest.TestCase):
     def setUp(self):
@@ -91,10 +126,15 @@ class SessionTests(unittest.TestCase):
         session._liberty_paths = [library]
         session._source_hashes = {str(library): hashlib.sha256(library.read_bytes()).hexdigest()}
         session._inspections = {}
+        session._accepted_names = set()
         self.session = session
         fingerprint = patch.object(live, "_fingerprint", side_effect=lambda design: design.signature)
         fingerprint.start()
         self.addCleanup(fingerprint.stop)
+        self.shared = set()
+        names = patch.object(live, "shared_names", side_effect=lambda top: set(self.shared))
+        names.start()
+        self.addCleanup(names.stop)
 
     def test_agent_attachment_is_a_copy_without_secrets_or_side_effects(self):
         self.session._bridge.connection_file.write_text('{"token": "never-return-this"}')
@@ -168,6 +208,36 @@ class SessionTests(unittest.TestCase):
         self.assertIsNone(self.session.proof)
         self.assertEqual(self.session.status()["state"], "edit_error")
         self.session._client.call.assert_not_called()
+
+    def test_edit_adding_a_shared_name_is_an_error_until_renamed(self):
+        self.session.proof = {"status": "proved"}
+
+        def clash(top):
+            self.shared.add(("fixture", "g"))
+            top.signature += "-clash"
+
+        def unrelated(top):
+            top.signature += "-more"
+
+        def rename(top):
+            self.shared.clear()
+            top.signature += "-renamed"
+
+        for edit in (clash, unrelated):
+            with patch.object(live, "editing_function", return_value=edit), \
+                 self.assertRaisesRegex(ValueError, r"g \(module fixture\)"):
+                self.session.apply_edit("edit script")
+            self.assertEqual(self.session.status()["state"], "edit_error")
+            self.assertIsNone(self.session.proof)
+        self.session._client.call.assert_not_called()
+        with patch.object(live, "editing_function", return_value=rename):
+            self.assertEqual(self.session.apply_edit("edit script")["status"], "proved")
+        self.assertEqual(self.session._candidate.signature, "candidate-clash-more-renamed")
+
+    def test_names_the_loaded_design_shares_are_not_edit_errors(self):
+        self.session._accepted_names = {("fixture", "old")}
+        self.shared.add(("fixture", "old"))
+        self.assertEqual(self.session.apply_edit("def edit(top):\n pass")["status"], "proved")
 
     def test_invalid_script_never_mutates_or_discards_valid_proof(self):
         self.session.proof = {"status": "proved"}
