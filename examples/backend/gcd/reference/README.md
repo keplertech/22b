@@ -13,21 +13,34 @@ does not change the shared policy for exploratory partial/inconclusive proofs.
 Verification uses the Python-backed Kepler Formal MCP, not the legacy Nix CLI.
 
 Small mapped SKY130HD GCD design: 249 original leaf cells, 4.36 ns clock period.
-Five serial majority gates (`_215_` through `_219_`) are replaced with a 31-gate
+Five serial majority gates (`_215_` through `_219_`) are replaced with a 23-gate
 generate/propagate prefix network. All five original output nets are reused,
 including their side consumers. Registers and cycle boundaries stay unchanged.
 
 The arithmetic identity is `majority(a,b,c) = (a & b) | ((a | b) & c)`.
 Computing group generate/propagate terms in parallel reduces carry dependence.
+All eleven inputs arrive at about the same time, so the carry-in is folded
+into bit 0 and the terms form a balanced tree of four levels. The cells
+alternate polarity (NAND, NOR, AOI, OAI), so each level is a single stage.
 Fewer logic levels, not fewer initial gates, is the timing hypothesis. The
-edited design has 275 leaf cells before physical optimization.
+edited design has 267 leaf cells before physical optimization.
+
+The packaged flow repairs setup timing on placement estimates and stops at
+about zero slack; routing then costs several tens of picoseconds. An edit
+therefore needs margin of its own. An earlier 31-gate network of two-stage
+AND/OR cells, with the carry-in added last, had five levels. Measured with
+the pinned packages in November 2026, it ended at -0.025 ns after routing;
+this one needed no repair and ended at +0.205 ns. Measure again after any
+package change.
 
 ## Contents
 
 - [input.v](../input.v): original mapped design, never edited in place.
 - [constraints.sdc](../constraints.sdc): original clock and I/O constraints.
-- [edit.py](edit.py): reviewed standalone NajaEDA rewrite from the recorded demo,
-  with additional input/name/output guards. Not a fresh model generation.
+- [edit.py](edit.py): reviewed standalone NajaEDA rewrite, with input/name/output
+  guards. Not a fresh model generation.
+- [media/demo.mp4](media/demo.mp4): 48-second walk-through of this replay with the
+  pinned packages. Its numbers, log lines and layout images come from that run.
 - [live_session.py](live_session.py): optional in-memory replay with two
   cumulative edits, no design exports, and full SEC after each edit.
 - [request.md](request.md): saved, solution-specific request for this reference.
@@ -112,10 +125,16 @@ without this directory in its initial context.
 python -m py_compile "$EXAMPLE/reference/edit.py"
 python "$EXAMPLE/reference/edit.py" --liberty "$LIBERTY" \
   --input "$EXAMPLE/input.v" --output "$RUN/candidate.v" | tee "$RUN/edit.log"
+python tools/edit_validation.py --liberty "$LIBERTY" --verilog "$RUN/candidate.v"
 ```
 
 The script refuses an existing output file and checks the original carry chain
 before editing. Run without Python's `-O` flag, which disables its assertions.
+Each new gate is `ppa_cla_<term>` and the new net it drives `ppa_cla_<term>_net`.
+Verilog allows no instance with the name of a net. NajaEDA, Kepler Formal and
+OpenROAD accept one, but OpenROAD then times the design without the extracted
+parasitics of those nets. The second command checks the exported file; the
+automated replay runs it as part of the edit stage.
 Input hashes and the 2,048-case Boolean truth table are checked by the offline
 tests; those checks do not replace SEC of the exported candidate.
 
@@ -184,6 +203,13 @@ That recorded run proved all 18/18 observed outputs at k=5 under Kepler's
 dual-rail steady-state abstraction. Setup improved by about 600 ps, but the
 positive margin was only 0.132 ps. Power used the same default activity
 assumptions and this is a typical-corner demonstration, not multi-corner signoff.
+
+That run used the earlier 31-gate network, in which each new net also had the
+name of the gate driving it. In the packaged flow such names make OpenROAD drop the extracted
+parasitics of those nets when it reads the SPEF back (`pin ... not found`) and
+report about 0.1 ns more setup slack than the same layout has. The historical
+image was not rerun: treat its candidate slack as unverified and probably
+optimistic.
 
 The full source revision and image are recorded in
 [historical-results.json](historical-results.json). A new tool package requires

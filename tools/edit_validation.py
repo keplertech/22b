@@ -14,7 +14,7 @@ METHODS = frozenset({
     "get_bits", "get_bit", "get_name", "get_model_name", "get_direction",
     "is_input", "is_output", "is_inout", "is_leaf", "is_sequential",
     "create_net", "create_child_instance", "connect_upper_net", "disconnect",
-    "delete", "rename", "get", "items", "keys", "values", "append", "extend",
+    "delete", "rename", "set_name", "get", "items", "keys", "values", "append", "extend",
     "add", "update", "pop", "copy", "index", "count",
 })
 
@@ -61,3 +61,61 @@ def editing_function(source):
     namespace = {"__builtins__": dict(BUILTINS)}
     exec(code, namespace)
     return namespace["edit"]
+
+
+def shared_names(top):
+    """(module, name) for each instance named like a net or port of its module.
+
+    Verilog keeps a module's instances, nets and ports in one name space.
+    NajaEDA keeps them apart: it creates such a pair and exports it, and its
+    own reader, Kepler Formal and OpenROAD accept the file, so neither SEC nor
+    the physical flow fails. Strict readers such as Verilator and Yosys reject
+    it, and OpenROAD loses the extracted parasitics of those nets.
+    """
+    found, seen, pending = set(), set(), [top]
+    while pending:
+        design = pending.pop()
+        module = design.get_model_name()
+        if module in seen:
+            continue
+        seen.add(module)
+        children = list(design.get_child_instances())
+        taken = {item.get_name() for item in (*design.get_nets(), *design.get_terms())} - {""}
+        found.update((module, name) for name in (child.get_name() for child in children) if name in taken)
+        pending.extend(child for child in children if not child.is_leaf())
+    return found
+
+
+def explain_shared_names(names):
+    listed = sorted(names)
+    text = ", ".join(f"{name} (module {module})" for module, name in listed[:8])
+    if len(listed) > 8:
+        text += f" and {len(listed) - 8} more"
+    return ("An instance has the name of a net or port of its module, which Verilog "
+            f"does not allow: {text}. Rename one of each pair with set_name")
+
+
+def main():
+    """Check an exported netlist, reloaded from the file as the flow's tools read it."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Fail if an instance of the netlist has the name of a net or port of its module.")
+    parser.add_argument("--liberty", required=True, nargs="+")
+    parser.add_argument("--verilog", required=True)
+    args = parser.parse_args()
+    from najaeda import netlist
+
+    netlist.reset()
+    netlist.load_liberty(args.liberty)
+    top = netlist.load_verilog([args.verilog])
+    if top is None:
+        parser.exit(1, "Name check failed: no top loaded\n")
+    found = shared_names(top)
+    if found:
+        parser.exit(1, f"Name check failed: {explain_shared_names(found)}\n")
+    print("NAMES_OK: no instance has the name of a net or port")
+
+
+if __name__ == "__main__":
+    main()

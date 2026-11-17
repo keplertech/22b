@@ -13,7 +13,7 @@ import sys
 import tempfile
 import threading
 
-from tools.edit_validation import editing_function
+from tools.edit_validation import editing_function, explain_shared_names, shared_names
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -180,6 +180,8 @@ class LiveDesignSession:
             self._universe.setTopDesign(self._candidate)
             self._golden_hash = _fingerprint(self._golden)
             self._candidate_hash = _fingerprint(self._candidate)
+            # Names the loaded design already shares are its own; an edit may add none.
+            self._accepted_names = shared_names(netlist.get_top())
             self._bridge = SessionBridge(output_dir=self.directory / "formal").start()
             self._golden_ref = self._bridge.design_reference(self._golden)
             self._candidate_ref = self._bridge.design_reference(self._candidate)
@@ -377,7 +379,12 @@ class LiveDesignSession:
                 with self._bridge.lock:
                     self._universe.setTopDesign(self._candidate)
                     try:
-                        function(self._netlist.get_top())
+                        top = self._netlist.get_top()
+                        function(top)
+                        # NajaEDA allows it; the Verilog exported later would not be valid.
+                        added = shared_names(top) - self._accepted_names
+                        if added:
+                            raise ValueError(explain_shared_names(added))
                     finally:
                         self._candidate_hash = _fingerprint(self._candidate)
                         self._check()

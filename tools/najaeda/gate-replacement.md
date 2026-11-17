@@ -8,7 +8,12 @@ Purpose: local structural replacement. This is not a constant-propagation helper
 2. Capture boundary **net objects**, not guessed names, from
    `instance.get_term(pin).get_upper_net()`. Capture all output nets, including
    intermediate outputs with consumers outside the replacement group.
-3. Check every expected chain connection and make new net/instance names unique.
+3. Check every expected chain connection. Use a new name only if
+   `top.get_net(name)`, `top.get_child_instance(name)` and `top.get_term(name)`
+   all return `None`, and never give a new net the name of a new instance:
+   Verilog keeps nets, instances and ports in one name space per module, which
+   NajaEDA does not enforce. Derive both names from one stem, for example
+   `<stem>` for a gate and `<stem>_net` for the net it drives.
    Validate the complete replacement specification before deleting anything.
 4. Create internal nets with `top.create_net(name)` and gates with
    `top.create_child_instance(model=model_name, name=instance_name)`.

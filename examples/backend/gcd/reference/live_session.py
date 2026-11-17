@@ -18,9 +18,9 @@ SECOND = '''def edit(top):
     assert gate is not None
     assert top.get_net("session_buffer_stage") is None
     assert top.get_child_instance("session_buffer") is None
-    output = gate.get_term("X").get_upper_net()
+    output = gate.get_term("Y").get_upper_net()
     stage = top.create_net("session_buffer_stage")
-    gate.get_term("X").connect_upper_net(stage)
+    gate.get_term("Y").connect_upper_net(stage)
     buf = top.create_child_instance(model="sky130_fd_sc_hd__buf_1", name="session_buffer")
     buf.get_term("A").connect_upper_net(stage)
     buf.get_term("X").connect_upper_net(output)

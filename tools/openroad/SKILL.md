@@ -23,6 +23,11 @@ TNS, area, estimated power and activity assumptions, electrical violations,
 routing status and DRC count. Save the final database, DEF, Verilog and SDC when
 the selected flow supports them. Do not treat pre-route timing as final timing.
 
+After parasitic extraction, search the log for annotation warnings such as SPEF
+pins or nets `not found`. Timing is then reported without those wires and looks
+better than the layout is. Treat that run as failed and remove the cause, for
+example an instance that has the name of a net ([NajaEDA](../najaeda/SKILL.md)).
+
 When a visual explanation is requested, open the saved database with the matching
 technology data in OpenROAD's GUI. Show the full layout and a separately focused
 critical path. Capture actual tool output, not a synthetic drawing presented as

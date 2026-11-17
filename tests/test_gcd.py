@@ -59,12 +59,16 @@ class Top:
             pins["C"] = Pin(self.nets["c0" if i == 0 else f"x{i-1}"])
             self.gates[f"_{215+i}_"] = Gate("sky130_fd_sc_hd__maj3_2", pins)
         self.side_loads = [Pin(self.nets[f"x{i}"]) for i in range(5)]
+        self.ports = {}
 
     def get_child_instance(self, name):
         return self.gates.get(name)
 
     def get_net(self, name):
         return self.nets.get(name)
+
+    def get_term(self, name):
+        return self.ports.get(name)
 
     def create_net(self, name):
         if name in self.nets:
@@ -73,14 +77,27 @@ class Top:
         return self.nets[name]
 
     def create_child_instance(self, *, model, name):
-        pins = ("A1", "A2", "B1", "X") if "__a21o_" in model else ("A", "B", "X")
+        _, output_pin, function = CELLS[model]
+        pins = (*function.__code__.co_varnames[:function.__code__.co_argcount], output_pin)
         self.gates[name] = Gate(model, {pin: Pin() for pin in pins})
         return self.gates[name]
 
 
+# The cells the rewrite uses: output pin and Boolean function of the Liberty cell.
+CELLS = {f"sky130_fd_sc_hd__{name}_1": (name, pin, function) for name, pin, function in (
+    ("and2", "X", lambda A, B: A & B),
+    ("or2", "X", lambda A, B: A | B),
+    ("nand2", "Y", lambda A, B: 1 - (A & B)),
+    ("nor2", "Y", lambda A, B: 1 - (A | B)),
+    ("inv", "Y", lambda A: 1 - A),
+    ("a21oi", "Y", lambda A1, A2, B1: 1 - ((A1 & A2) | B1)),
+    ("o21ai", "Y", lambda A1, A2, B1: 1 - ((A1 | A2) & B1)),
+)}
+
+
 class GcdTests(unittest.TestCase):
     def test_truth_table_all_2048_inputs_and_five_outputs(self):
-        self.assertEqual(len(ROWS), 31)
+        self.assertEqual(len(ROWS), 23)
         for bits in itertools.product((0, 1), repeat=11):
             values = dict(zip([f"a{i}" for i in range(5)] + [f"b{i}" for i in range(5)] + ["c0"], bits))
             expected = []
@@ -88,18 +105,12 @@ class GcdTests(unittest.TestCase):
             for i in range(5):
                 carry = int(values[f"a{i}"] + values[f"b{i}"] + carry >= 2)
                 expected.append(carry)
-            for model, output, *inputs in ROWS:
-                args = [values[key] for key in inputs if key != "-"]
-                if "__and2_" in model:
-                    result = args[0] & args[1]
-                elif "__or2_" in model:
-                    result = args[0] | args[1]
-                elif "__a21o_" in model:
-                    result = (args[0] & args[1]) | args[2]
-                else:
-                    self.fail(f"Unknown Boolean model: {model}")
+            for model, output, output_pin, inputs in ROWS:
+                self.assertIn(model, CELLS, f"Unknown Boolean model: {model}")
+                _, pin, function = CELLS[model]
+                self.assertEqual(output_pin, pin)
                 self.assertNotIn(output, values)
-                values[output] = result
+                values[output] = function(**{name: values[key] for name, key in inputs.items()})
             self.assertEqual([values[f"x{i}"] for i in range(5)], expected, bits)
 
     def test_actual_edit_keeps_boundary_objects_and_wires_every_pin(self):
@@ -109,12 +120,22 @@ class GcdTests(unittest.TestCase):
         EDIT["edit"](top)
         self.assertTrue(all(gate.deleted for gate in originals))
         live = [gate for gate in top.gates.values() if not gate.deleted]
-        self.assertEqual(len(live), 31)
+        self.assertEqual(len(live), 23)
         self.assertTrue(all(pin.net is not None for gate in live for pin in gate.pins.values()))
         for i, output in enumerate(outputs):
             self.assertIs(top.side_loads[i].net, output)
-            drivers = [gate for gate in live if gate.get_term("X").net is output]
+            drivers = [gate for gate in live if gate.get_term(CELLS[gate.model][1]).net is output]
             self.assertEqual(len(drivers), 1)
+
+    def test_a_row_cannot_read_a_term_before_it_is_driven(self):
+        # x0 is an original net: it exists from the start, but its new driver comes with its row.
+        source = ast.unparse(FUNCTIONS).replace("{'A1': 'p0', 'A2': 'c0', 'B1': 'g0'}", "{'A1': 'p0', 'A2': 'x0', 'B1': 'g0'}")
+        broken = {}
+        exec(compile(source, "edit.py", "exec"), broken)
+        top = Top()
+        with self.assertRaisesRegex(AssertionError, "read before it is driven"):
+            broken["edit"](top)
+        self.assertEqual(len(top.gates), 5)
 
     def test_broken_chain_is_rejected_before_mutation(self):
         top = Top()
@@ -124,12 +145,26 @@ class GcdTests(unittest.TestCase):
         self.assertEqual(len(top.gates), 5)
         self.assertFalse(any(gate.deleted for gate in top.gates.values()))
 
-    def test_name_collision_is_rejected_before_mutation(self):
+    def test_new_gates_and_nets_never_share_a_name(self):
         top = Top()
-        top.nets["ppa_cla_g44"] = object()
-        with self.assertRaises(AssertionError):
-            EDIT["edit"](top)
-        self.assertEqual(len(top.gates), 5)
+        before = set(top.nets)
+        EDIT["edit"](top)
+        created = set(top.nets) - before
+        # 23 gates drive the 5 original boundary nets and 18 new ones.
+        self.assertEqual(len(created), 18)
+        self.assertFalse(created & set(top.gates))
+
+    def test_name_collision_is_rejected_before_mutation(self):
+        # One Verilog name space: a new name must be unused by nets, instances and ports alike.
+        for kind in ("nets", "gates", "ports"):
+            for name in ("ppa_cla_nG41", "ppa_cla_nG41_net", "ppa_cla_x4"):
+                top = Top()
+                getattr(top, kind)[name] = object()
+                with self.subTest(kind=kind, name=name):
+                    with self.assertRaises(AssertionError):
+                        EDIT["edit"](top)
+                    self.assertEqual(len(top.gates), 5 + (kind == "gates"))
+                    self.assertEqual(len(top.nets), 16 + (kind == "nets"))
 
     def test_missing_target_rejected(self):
         top = Top()
