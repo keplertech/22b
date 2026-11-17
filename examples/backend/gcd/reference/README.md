@@ -37,8 +37,10 @@ package change.
 
 - [input.v](../input.v): original mapped design, never edited in place.
 - [constraints.sdc](../constraints.sdc): original clock and I/O constraints.
-- [edit.py](edit.py): reviewed standalone NajaEDA rewrite from the recorded demo,
-  with additional input/name/output guards. Not a fresh model generation.
+- [edit.py](edit.py): reviewed standalone NajaEDA rewrite, with input/name/output
+  guards. Not a fresh model generation.
+- [media/demo.mp4](media/demo.mp4): 48-second walk-through of this replay with the
+  pinned packages. Its numbers, log lines and layout images come from that run.
 - [live_session.py](live_session.py): optional in-memory replay with two
   cumulative edits, no design exports, and full SEC after each edit.
 - [request.md](request.md): saved, solution-specific request for this reference.
