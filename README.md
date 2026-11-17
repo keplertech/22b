@@ -24,10 +24,10 @@ Watch the GCD timing-improvement flow: OpenROAD, AI report analysis,
 Naja-Scope inspection, NajaEDA editing, Kepler Formal SEC, and a second
 OpenROAD run to compare the results.
 
-[![GCD flow demo: click to play](examples/backend/gcd/reference/media/demo-preview.jpg)](examples/backend/gcd/reference/media/demo.mp4)
+![GCD flow demo](examples/backend/gcd/reference/media/demo.webp)
 
-Click the picture to play it: 48 seconds, no audio. [Download the MP4](https://github.com/keplertech/22b/raw/refs/heads/main/examples/backend/gcd/reference/media/demo.mp4)
-if the player is unavailable.
+48 seconds, no audio, playing in a loop. [Download the MP4](https://github.com/keplertech/22b/raw/refs/heads/main/examples/backend/gcd/reference/media/demo.mp4)
+to pause it or step through it.
 
 ## Start
 

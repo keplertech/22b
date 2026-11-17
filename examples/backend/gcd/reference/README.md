@@ -41,6 +41,8 @@ package change.
   guards. Not a fresh model generation.
 - [media/demo.mp4](media/demo.mp4): 48-second walk-through of this replay with the
   pinned packages. Its numbers, log lines and layout images come from that run.
+  [media/demo.webp](media/demo.webp) is the same video as an animated image,
+  which the top-level README can play inline.
 - [live_session.py](live_session.py): optional in-memory replay with two
   cumulative edits, no design exports, and full SEC after each edit.
 - [request.md](request.md): saved, solution-specific request for this reference.

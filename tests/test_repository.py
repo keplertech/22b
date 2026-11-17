@@ -17,18 +17,19 @@ DOCS = [ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "SKILL.md",
 
 
 class RepositoryTests(unittest.TestCase):
-    def test_demo_plays_the_video_kept_in_the_repository(self):
-        # GitHub embeds a player only for a copy uploaded through its website, and that
-        # copy goes stale when the video changes. The preview picture links to the file
-        # in the repository instead, so every branch shows its own video.
+    def test_demo_plays_inline_from_the_repository(self):
+        # GitHub's README player accepts only a copy uploaded through its website, which
+        # goes stale when the video changes, and its file page does not play an MP4. The
+        # animated image kept beside the MP4 plays inline, on every branch.
         readme = (ROOT / "README.md").read_text()
         demo = readme.split("## Demo\n", 1)[1].split("\n## ", 1)[0]
         media = "examples/backend/gcd/reference/media"
-        self.assertRegex(demo, rf"(?m)^\[!\[[^\]]+\]\({media}/demo-preview\.jpg\)\]\({media}/demo\.mp4\)$")
+        self.assertRegex(demo, rf"(?m)^!\[[^\]]+\]\({media}/demo\.webp\)$")
         self.assertNotIn("user-attachments", demo)
         self.assertNotIn("](examples/backend/gcd/media/demo.mp4)", demo)
-        with (ROOT / media / "demo-preview.jpg").open("rb") as stream:
-            self.assertEqual(stream.read(3), b"\xff\xd8\xff")
+        header = (ROOT / media / "demo.webp").read_bytes()[:64]
+        self.assertEqual((header[:4], header[8:12]), (b"RIFF", b"WEBP"))
+        self.assertIn(b"ANIM", header)  # animated, not a still picture
 
     def test_demo_has_repository_download_fallback(self):
         readme = (ROOT / "README.md").read_text()
